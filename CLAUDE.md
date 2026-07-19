@@ -4,19 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current State
 
-This repo is **pre-scaffolding**: git is initialized (`main` branch) and process docs (`CONTRIBUTING.md`, this file) exist, but there is no application code yet — no root `package.json`, `pnpm-workspace.yaml`, `server/`, or `client/`. Nothing in the tech stack, directory layout, or commands below exists on disk yet — they describe the *intended* design from the README. Treat the README's structure and command list as a proposal, not ground truth. When implementing, verify what actually exists before running any command, and update this file as real scaffolding lands.
+The **skeleton is scaffolded**. On disk: a root pnpm workspace (`package.json`, `pnpm-workspace.yaml`), a FastAPI backend under `server/` (uv-managed, `/health` endpoint, config + DB wiring, Alembic ready, module stubs for each pipeline stage), and a Vite/React/TypeScript frontend under `client/` (with `src/api/` generated from the backend's OpenAPI schema). `pnpm dev` boots both; `pnpm --filter client generate:api` regenerates the typed client.
 
-See `CONTRIBUTING.md` for branch naming, merge strategy, and commit message conventions. Automated enforcement of those conventions (husky/lint-staged/commitlint) is deferred until the root `package.json` / pnpm workspace is scaffolded.
+**No pipeline logic exists yet** — `app/ingestion/`, `app/embeddings/`, `app/clustering/`, `app/insights/` are documented stubs with no implementation, and no ORM models or migrations are authored. Each pipeline stage is built later via the Spec-Driven Design loop (`/spec-plan` → sign-off → `/spec-implement`). There is **no Docker**: Postgres (with pgvector) is developer-provided locally and reached via `DATABASE_URL`.
 
-### Git Workflow Skills (stopgap for deferred hook enforcement)
+See `CONTRIBUTING.md` for branch naming, merge strategy, and commit message conventions. These are now **enforced automatically** by husky + lint-staged + commitlint (wired into the root workspace).
 
-Because husky/lint-staged/commitlint enforcement is deferred (see above), three project-local skills under `.claude/skills/` exist to keep `CONTRIBUTING.md`'s conventions applied consistently by hand until that tooling lands:
+### Commit enforcement (husky + lint-staged + commitlint)
 
-- **`/git-branch`** — creates a branch named `<type>/<scope>/<short-desc>`, picking type/scope from the allowed lists rather than guessing.
-- **`/git-commit`** — stages relevant files and writes a scoped Conventional Commit message (`<type>(<scope>): <description>`), enforcing that scope is present and drawn from `server`/`client`/`root`/`api`.
-- **`/git-pr`** — opens a PR with a Conventional-Commits-style title and reminds that this repo is squash-and-merge only.
+`CONTRIBUTING.md`'s conventions are enforced by git hooks, installed automatically on `pnpm install` (the root `prepare` script runs `husky`):
 
-Use these instead of freehand `git branch`/`git commit`/`gh pr create` so history stays consistent regardless of who (or what) is committing. Retire or fold these into the hook tooling once husky/lint-staged/commitlint are actually wired up — don't let both mechanisms diverge silently.
+- **`.husky/commit-msg`** runs commitlint against `commitlint.config.cjs` — the message must be `<type>(<scope>): <description>` with `<scope>` present and one of `server`/`client`/`root`/`api`.
+- **`.husky/pre-commit`** runs lint-staged (`.lintstagedrc.json`) — prettier on staged JS/TS/JSON/MD/YAML, ruff on staged `server/**/*.py`.
+
+The former manual `git-*` skills have been **retired** now that this tooling is active (they were a stopgap while enforcement was deferred). Don't reintroduce hand-run commit skills alongside the hooks — let the hooks be the single source of enforcement.
 
 ## Workflow: Spec-Driven Design
 
@@ -53,28 +54,37 @@ Which model backs each stage is a **system configuration decision, not applicati
 
 Never hardcode a model ID in application code; always read one of these two env vars. No runtime model switching and no UI model-selection dropdown — changing a model means editing the env var and redeploying. Keep `app/insights/` and any client code agnostic to which model string is configured.
 
-## Planned Commands (verify before use)
+## Commands
 
-Root workspace install (once):
+Root workspace install (once) — also installs the husky git hooks via `prepare`:
+
 ```bash
 pnpm install                      # installs the JS/TS workspace (client/) per pnpm-workspace.yaml
 ```
 
-Backend (`cd server`):
+Run both apps concurrently from the repo root (no `cd`-ing into `server/`/`client/`):
+
 ```bash
-uv sync                           # installs deps from pyproject.toml / uv.lock, creates .venv automatically
-uv run alembic upgrade head       # apply DB migrations
-uv run uvicorn app.main:app --reload    # runs on :8000
+pnpm dev                          # backend on :8000 (uvicorn --reload) + frontend on :5173 (vite)
 ```
 
-Frontend (`cd client`) — uses **pnpm** (9+), not npm:
+Backend only (`cd server`) — requires a local Postgres reachable via `DATABASE_URL`:
+
+```bash
+uv sync                           # installs deps from pyproject.toml / uv.lock, creates .venv automatically
+uv run alembic upgrade head       # apply DB migrations (no migrations authored yet — chain is a no-op)
+uv run uvicorn app.main:app --reload    # runs on :8000
+uv run pytest                     # runs the backend test suite
+```
+
+Frontend only (`cd client`) — uses **pnpm** (9+), not npm:
+
 ```bash
 pnpm generate:api                 # regenerate client/src/api/ from the backend's OpenAPI schema (backend must be running)
 pnpm dev                          # runs on :5173, expects API at :8000
+pnpm build                        # typecheck (tsc -b) + production build
 ```
-
-Once root workspace scripts land, `pnpm dev` from the repo root should start both concurrently — no `cd`-ing into `server/`/`client/` separately.
 
 ## Data Contract
 
-CSV ingestion is the entry point. Only `feedback_text` is required; `date`, `source`, and `customer_id` are optional. Preserve these optional fields through the pipeline where present — `source` and `date` drive filtered/temporal analysis ("what are people saying about checkout *this month*"), and `customer_id` traces feedback back to accounts.
+CSV ingestion is the entry point. Only `feedback_text` is required; `date`, `source`, and `customer_id` are optional. Preserve these optional fields through the pipeline where present — `source` and `date` drive filtered/temporal analysis ("what are people saying about checkout _this month_"), and `customer_id` traces feedback back to accounts.

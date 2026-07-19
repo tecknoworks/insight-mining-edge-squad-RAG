@@ -6,12 +6,12 @@ Short-lived feature branches only — no `develop`/`release` branches (no GitFlo
 
 Branch naming: `<type>/<scope>/<short-desc>`
 
-| Type     | Scope examples             | Example                                  |
-| -------- | --------------------------- | ----------------------------------------- |
-| feat     | server, client, root, api  | `feat/server/add-clustering-endpoint`     |
-| fix      | server, client, root, api  | `fix/client/chat-ui-scroll`               |
-| chore    | server, client, root, api  | `chore/root/update-pnpm`                  |
-| refactor | server, client, root, api  | `refactor/api/regenerate-openapi-client`  |
+| Type     | Scope examples            | Example                                  |
+| -------- | ------------------------- | ---------------------------------------- |
+| feat     | server, client, root, api | `feat/server/add-clustering-endpoint`    |
+| fix      | server, client, root, api | `fix/client/chat-ui-scroll`              |
+| chore    | server, client, root, api | `chore/root/update-pnpm`                 |
+| refactor | server, client, root, api | `refactor/api/regenerate-openapi-client` |
 
 ## Merging
 
@@ -25,6 +25,7 @@ Allowed types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `styl
 Allowed scopes: `server`, `client`, `root`, `api` (scope is **required** on every commit)
 
 Examples:
+
 - `feat(server): implement embeddings generation`
 - `fix(client): resolve unhandled promise in API client`
 - `refactor(api): regenerate openapi-ts client`

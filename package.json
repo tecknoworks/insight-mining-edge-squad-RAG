@@ -1,0 +1,28 @@
+{
+  "name": "insight-miner",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Semantic Customer Feedback & Insight Mining — root pnpm workspace wrapping the FastAPI backend and React frontend.",
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@11.5.3",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"pnpm dev:server\" \"pnpm dev:client\"",
+    "dev:server": "uv run --project server uvicorn app.main:app --reload --app-dir server",
+    "dev:client": "pnpm --filter client dev",
+    "generate:api": "pnpm --filter client generate:api",
+    "lint": "prettier --check \"**/*.{js,cjs,ts,tsx,json,md,yaml,yml}\"",
+    "format": "prettier --write \"**/*.{js,cjs,ts,tsx,json,md,yaml,yml}\"",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
+    "concurrently": "^9.1.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0",
+    "prettier": "^3.4.2"
+  }
+}

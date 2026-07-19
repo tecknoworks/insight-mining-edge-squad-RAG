@@ -1,0 +1,10 @@
+# Generated / vendored
+client/src/api/
+pnpm-lock.yaml
+node_modules/
+dist/
+build/
+
+# Python
+server/.venv/
+server/alembic/versions/

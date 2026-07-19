@@ -1,0 +1,4 @@
+{
+  "*.{js,cjs,ts,tsx,json,md,yaml,yml}": "prettier --write",
+  "server/**/*.py": "uv run --project server ruff check --fix"
+}

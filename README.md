@@ -70,9 +70,10 @@ insight-miner/
 │   │   └── App.tsx
 │   ├── package.json
 │   └── vite.config.ts
-├── docker-compose.yml
 └── README.md
 ```
+
+> **No Docker.** Postgres (with `pgvector`) is provided by the developer locally (e.g. a native/Homebrew install) and reached via `DATABASE_URL` — the app does not manage the database lifecycle, and there is no `docker-compose.yml`.
 
 **Suggested stack** (adjust as the project evolves):
 
@@ -108,12 +109,13 @@ Run this whenever backend routes or schemas change, and commit the generated out
 - [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Node.js 18+
 - pnpm 9+ (`npm install -g pnpm` if you don't have it yet)
-- An Anthropic API key
+- A local **PostgreSQL** with the `pgvector` extension available (no Docker — install natively, e.g. `brew install postgresql@15 pgvector`, and create a database)
+- An Anthropic API key (and a [Voyage AI](https://www.voyageai.com/) key for embeddings, once that stage lands)
 
 ### Workspace setup (root)
 
 ```bash
-pnpm install   # installs the JS/TS workspace (client/) from the root pnpm-workspace.yaml
+pnpm install   # installs the JS/TS workspace (client/) + husky git hooks from the root pnpm-workspace.yaml
 ```
 
 ### Backend
@@ -121,8 +123,8 @@ pnpm install   # installs the JS/TS workspace (client/) from the root pnpm-works
 ```bash
 cd server
 uv sync                        # installs deps from pyproject.toml / uv.lock, creates .venv automatically
-cp .env.example .env           # add ANTHROPIC_API_KEY, ANTHROPIC_SUMMARIZATION_MODEL, ANTHROPIC_CHAT_MODEL, and DB connection string
-uv run alembic upgrade head    # apply DB migrations
+cp .env.example .env           # add ANTHROPIC_API_KEY, VOYAGE_API_KEY, the model vars, and DATABASE_URL
+uv run alembic upgrade head    # apply DB migrations against your local Postgres (no migrations authored yet)
 uv run uvicorn app.main:app --reload
 ```
 
@@ -184,14 +186,16 @@ This project follows **Spec-Driven Design (SDD)**: write a spec, get sign-off, t
 
 | Skill              | Command           | What it does                                                                                      |
 | ------------------ | ----------------- | ------------------------------------------------------------------------------------------------- |
-| **specs-plan**     | `/specs-plan`     | Generates a new spec file under `/specs` for a feature — goal, acceptance criteria, test plan.    |
+| **spec-plan**      | `/spec-plan`      | Generates a new spec file under `/specs` for a feature — goal, acceptance criteria, test plan.    |
 | **spec-implement** | `/spec-implement` | Builds to an approved spec: touches only the files it lists and verifies its acceptance criteria. |
 
-Typical flow: `/specs-plan <feature>` to draft the spec → review and sign off → `/spec-implement <feature>` to build it.
+Typical flow: `/spec-plan <feature>` to draft the spec → review and sign off → `/spec-implement <feature>` to build it. Each pipeline stage (ingestion, embeddings, clustering, summarization, chat, visualization) is built this way.
+
+Commit and branch conventions from [CONTRIBUTING.md](CONTRIBUTING.md) are enforced automatically by husky + lint-staged + commitlint (installed on `pnpm install`).
 
 ## Contributing
 
-This project is in early development. Issues and PRs are welcome once the initial scaffolding lands.
+This project is in early development. The skeleton is scaffolded (`pnpm dev` runs both apps); pipeline features are built stage by stage via the SDD loop above. Issues and PRs welcome.
 
 ## License
 

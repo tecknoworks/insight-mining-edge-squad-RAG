@@ -1,0 +1,9 @@
+# JS/TS workspace members. The Python backend (server/) is managed by uv, not
+# pnpm, so it is deliberately NOT listed here. Add future packages/* entries if
+# UI/state code is extracted into shared packages.
+packages:
+  - client
+
+# esbuild (a Vite dependency) needs its post-install build script to run.
+allowBuilds:
+  esbuild: true
