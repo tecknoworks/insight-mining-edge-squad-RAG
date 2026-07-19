@@ -101,46 +101,57 @@ Run this whenever backend routes or schemas change, and commit the generated out
 
 ## Getting Started
 
-> These steps assume a standard FastAPI + Vite React setup. Update once the actual scaffolding is in place.
+> The skeleton is scaffolded and boots today. No pipeline logic is implemented yet — see the [Roadmap](#roadmap).
 
 ### Prerequisites
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- Node.js 18+
-- pnpm 9+ (`npm install -g pnpm` if you don't have it yet)
-- A local **PostgreSQL** with the `pgvector` extension available (no Docker — install natively, e.g. `brew install postgresql@15 pgvector`, and create a database)
+- Node.js 18+ (the repo pins 22 via `.nvmrc` — run `nvm use`)
+- pnpm 9+ (`corepack enable pnpm`)
+- A local **PostgreSQL** with the `pgvector` extension available (no Docker — install natively, e.g. `brew install postgresql@15 pgvector`, create the database, then `CREATE EXTENSION IF NOT EXISTS vector;`)
 - An Anthropic API key (and a [Voyage AI](https://www.voyageai.com/) key for embeddings, once that stage lands)
 
-### Workspace setup (root)
+### Quick start (recommended)
+
+From the repo root:
 
 ```bash
-pnpm install   # installs the JS/TS workspace (client/) + husky git hooks from the root pnpm-workspace.yaml
+pnpm install                       # installs the client workspace + husky git hooks (via the prepare script)
+uv sync --project server           # creates server/.venv and installs backend deps
+cp server/.env.example server/.env # then fill in ANTHROPIC_API_KEY (model vars + DATABASE_URL have working defaults)
+uv run --directory server alembic upgrade head # apply DB migrations (chain is a no-op until migrations are authored)
+pnpm dev                           # boots backend (:8000) + frontend (:5173) concurrently
 ```
 
-### Backend
+`pnpm dev` runs `uv run uvicorn app.main:app --reload` and the Vite dev server together — no need to `cd` into `server/` or `client/`. Verify the backend with `curl http://localhost:8000/health` (→ `{"status":"ok"}`).
+
+### Running an app on its own
+
+Backend only (`cd server`):
 
 ```bash
-cd server
-uv sync                        # installs deps from pyproject.toml / uv.lock, creates .venv automatically
-cp .env.example .env           # add ANTHROPIC_API_KEY, VOYAGE_API_KEY, the model vars, and DATABASE_URL
-uv run alembic upgrade head    # apply DB migrations against your local Postgres (no migrations authored yet)
-uv run uvicorn app.main:app --reload
+uv sync
+uv run uvicorn app.main:app --reload   # http://localhost:8000
 ```
 
-### Frontend
+Frontend only (`cd client`, uses pnpm):
 
 ```bash
-cd client
-pnpm generate:api   # regenerate the typed API client from the backend's OpenAPI schema (requires the backend running)
-pnpm dev
+pnpm generate:api   # regenerate the typed API client from the backend's OpenAPI schema (backend must be running)
+pnpm dev            # http://localhost:5173
+pnpm build          # typecheck (tsc -b) + production build
 ```
 
-The frontend will run on `http://localhost:5173` and expect the API at `http://localhost:8000` (configurable via `.env`).
+The frontend defaults to the API at `http://localhost:8000`; override it by setting `VITE_API_URL` in `client/.env`. From the root you can also regenerate the client with `pnpm generate:api`.
 
-### Run everything from the root
+### Verify the setup
 
-Once the root workspace scripts land, `pnpm dev` from the repo root starts the FastAPI backend (via `uv run uvicorn ...`) and the Vite dev server concurrently — no need to `cd` into `server/` or `client/` separately.
+Run the bundled doctor to check tooling, env files, dependencies, and DB connectivity, then attempt to boot both apps:
+
+```bash
+bash .claude/skills/check-setup/check-setup.sh
+```
 
 ## AI Model Configuration
 
