@@ -16,7 +16,6 @@ __pycache__/
 *.egg-info/
 
 # Env files
-.env.local
 server/.env
 
 # OS / editor

@@ -55,7 +55,7 @@ When adding a pipeline feature, respect the module boundaries: keep embedding/cl
 
 Claude is used in two places — **cluster summarization** (batch: label a theme + pick representative quotes) and **chat-with-data** (RAG: answer over retrieved feedback). Before writing any Claude API call, embedding call, or model-selection code, consult the `claude-api` skill for current model IDs, pricing, and patterns rather than relying on memory. Requires `ANTHROPIC_API_KEY` in `server/.env`.
 
-Which model backs each stage is a **system configuration decision, not application logic** — see `.env.local` / `server/.env`:
+Which model backs each stage is a **system configuration decision, not application logic** — see `server/.env` (template: `server/.env.example`):
 
 - `ANTHROPIC_SUMMARIZATION_MODEL` (default `claude-haiku-4-5`) — cluster summarization
 - `ANTHROPIC_CHAT_MODEL` (default `claude-sonnet-5`) — chat-with-data

@@ -144,7 +144,7 @@ Once the root workspace scripts land, `pnpm dev` from the repo root starts the F
 
 ## AI Model Configuration
 
-Which Claude model powers each AI-driven stage is a **system configuration decision**, not an application concern. Two env vars (see `.env.local`, or `server/.env` once backend scaffolding lands) select the model per stage:
+Which Claude model powers each AI-driven stage is a **system configuration decision**, not an application concern. Two env vars in `server/.env` (template: `server/.env.example`) select the model per stage:
 
 | Env var                         | Used by                                                                  | Default                                                                  |
 | ------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
