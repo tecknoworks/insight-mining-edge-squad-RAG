@@ -19,11 +19,12 @@ See `CONTRIBUTING.md` for branch naming, merge strategy, and commit message conv
 
 ### Authoring — git workflow skills (shared with the team)
 
-Three project-local skills under `.claude/skills/` help produce conforming git operations rather than relying on everyone to remember the rules. They are **kept intentionally** (shared team tooling), not retired — they complement the hooks: the skills get the branch/commit/PR right up front, the hooks are the safety net that rejects anything that slips through.
+Four project-local skills under `.claude/skills/` help produce conforming git operations rather than relying on everyone to remember the rules. They are **kept intentionally** (shared team tooling), not retired — they complement the hooks: the skills get the branch/commit/PR right up front, the hooks are the safety net that rejects anything that slips through.
 
 - **`/git-branch`** — creates a branch named `<type>/<scope>/<short-desc>`, picking type/scope from the allowed lists.
 - **`/git-commit`** — stages relevant files and writes a scoped Conventional Commit (`<type>(<scope>): <description>`) with a required, valid scope.
 - **`/git-pr`** — opens a PR with a Conventional-Commits-style title and enforces the squash-and-merge-only policy.
+- **`/git-sync`** — after a PR squash-merges, fast-forwards local `main` and safely retires the merged branch (verifies the PR merged via `gh` first, since squash-merge hides the branch from `git branch -d`).
 
 Prefer these over freehand `git branch`/`git commit`/`gh pr create` so history stays consistent regardless of who (or what) is committing. Keep the two mechanisms in sync — if the allowed types/scopes in `CONTRIBUTING.md` change, update both `commitlint.config.cjs` and the skills.
 
