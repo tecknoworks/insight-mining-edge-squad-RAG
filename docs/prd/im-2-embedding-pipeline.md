@@ -23,26 +23,27 @@ job is running, finished, or partially failed. Embeddings are indexed in an in-m
 
 **In scope**
 
-- A provider-agnostic embedding client wrapping **Voyage AI** in `app/embeddings/`.
-- `embedding` column + vector index migration.
+- A provider-agnostic embedding client wrapping open-source **sentence-transformers** in `app/embeddings/`.
+- `embedding` column (BLOB, binary vector) + in-memory HNSW index.
 - Trigger endpoint + status endpoint.
-- Batching, retry with backoff, rate-limit handling, and idempotent re-runs.
+- Batching and idempotent re-runs (no external rate limits to manage).
 
 **Out of scope**
 
 - Clustering (IM-3) and retrieval (IM-6) — this ticket only produces and stores vectors.
-- Swapping providers at runtime. The provider is chosen by configuration, like the Claude models.
+- Swapping providers at runtime. The model is chosen by configuration via `EMBEDDING_MODEL`.
 - A background worker/queue system. Use FastAPI `BackgroundTasks` for now; note the ceiling in the
   spec's Constraints section.
 
 ## Technical approach
 
-- **Provider.** Open-source embeddings via `sentence-transformers` library. Default model:
-  `all-MiniLM-L6-v2` (384 dimensions, ~33M params, runs on CPU in <1ms/item on modern hardware).
+- **Provider.** Open-source embeddings via `sentence-transformers` library. **Default model:
+  `all-MiniLM-L6-v2`** (384 dimensions, ~33M params, runs on CPU in <1ms/item on modern hardware).
   Model is configurable via `EMBEDDING_MODEL` env var for swaps to other sentence-transformers
   models (e.g., `all-mpnet-base-v2` for higher quality, or quantized variants for faster inference).
 - **Model choice is system configuration, not application logic**. Read `EMBEDDING_MODEL` and
-  `EMBEDDING_DIMENSION` from settings; never hardcode them in a call site.
+  `EMBEDDING_DIMENSION` from settings; never hardcode them in a call site. Changing the env var
+  and restarting the server changes the model with no code change.
 - **Input type matters.** The `sentence-transformers` library supports both document and query
   embeddings via the same underlying model (no separate input type). For consistency with IM-6,
   expose two helper functions: `embed_documents(texts)` for feedback and `embed_query(text)` for
@@ -78,16 +79,18 @@ GET  /ingestion/datasets/{id}/embed   → 200 EmbeddingJobStatus
   "items_total": 1487,
   "items_embedded": 1487,
   "items_failed": 0,
-  "model": "<configured voyage model id>",
-  "dimension": 1024,
+  "model": "all-MiniLM-L6-v2",
+  "dimension": 384,
   "error": null,
   "started_at": "...",
   "finished_at": "...",
 }
 ```
 
-Persist job state on the `datasets` row (or a small `embedding_jobs` table) — it must survive a
-process restart, so it cannot live in memory.
+- `model` is read from `EMBEDDING_MODEL` at runtime and reflects the currently configured model.
+- `dimension` must match the model's output dimensionality (384 for MiniLM, 768 for MPNet, etc.).
+- Persist job state on the `datasets` row (or a small `embedding_jobs` table) — it must survive a
+  process restart, so it cannot live in memory.
 
 ## New configuration
 

@@ -31,14 +31,24 @@ every source normalising into the same `feedback_items` shape the CSV path alrea
 - `connections` and `sync_runs` tables; encrypted credential storage.
 - Connect / list / sync-now / disconnect endpoints, org-scoped per IM-7.
 - Incremental sync with a persisted cursor and deduplication.
-- Scheduled background sync.
+- **Scheduled background sync** (via `apscheduler`, in-process — see **Constraint** below).
 - Sub-ticket per provider: Zendesk → Intercom → (decide) App Store / Google Play.
+
+**⚠️ Constraint — Scheduler Ceiling**
+
+In-process `apscheduler` with no distributed lock does **not scale horizontally**. With a single
+application instance, scheduled sync works fine. With multiple instances (load balancer, Kubernetes
+replicas), syncs will duplicate and tokens will collide. **Before deploying to production with
+multiple app instances, replace `apscheduler` with a real job runner** (e.g., Celery + Redis,
+Temporal, or a managed queue like SQS). This is a **known limitation, not a bug** — document it in
+`README.md` and raise a follow-up ticket if horizontal scaling becomes needed.
 
 **Out of scope**
 
 - Two-way sync. This is read-only ingestion; Insight Miner never writes back to Zendesk.
 - Real-time webhooks. Poll on a schedule; note webhooks as a future enhancement.
 - Building any provider's OAuth consent UI beyond what the connector needs.
+- Distributed job scheduling / multiple app instances.
 
 ## Technical approach
 
@@ -62,10 +72,11 @@ AsyncIterator[RawFeedbackRecord]`, and `next_cursor(records)`. Registry maps a p
 - **Rate limits.** Every one of these providers rate-limits aggressively. Respect `Retry-After`,
   back off exponentially, and make a sync resumable — a sync interrupted by a rate limit must
   continue from its last committed cursor, not restart.
-- **Scheduling.** `apscheduler` in-process, interval-based per connection
-  (`CONNECTOR_SYNC_INTERVAL_MINUTES`, default 60). **Note the constraint explicitly in the spec:**
-  in-process scheduling does not survive multiple app instances and will need a real job runner
-  before horizontal scaling. Do not introduce Celery/Redis/Docker for this ticket.
+- **Scheduling.** `apscheduler` in-process, interval-based per connection. Base interval:
+  `CONNECTOR_SYNC_INTERVAL_MINUTES` (default 60). **Each connection can override** the interval
+  in its stored config (`sync_interval_minutes` field on the connection, nullable — null means
+  use the default). This gives operators granular control (e.g., sync a high-priority Zendesk every
+  15 minutes, a low-volume Intercom every 4 hours) without code changes.
 - **Downstream chaining.** A completed sync leaves new `feedback_items` with `embedding IS NULL`.
   Trigger the IM-2 embedding job for the affected dataset at the end of a successful sync so the new
   data becomes searchable without manual intervention. Re-clustering stays manual — it changes
@@ -74,13 +85,31 @@ AsyncIterator[RawFeedbackRecord]`, and `next_cursor(records)`. Registry maps a p
 ## API contract
 
 ```
-GET    /ingestion/connectors                        → 200 available providers + required credential fields
-POST   /ingestion/connections                       → 201 { provider, credentials, dataset_id? }
+GET    /ingestion/connectors                        → 200 available providers + required fields
+POST   /ingestion/connections                       → 201 { provider, credentials, dataset_id?, sync_interval_minutes? }
                                                        (validates credentials before persisting)
-GET    /ingestion/connections                       → 200 list (never includes credentials)
-POST   /ingestion/connections/{id}/sync             → 202 SyncRun
-GET    /ingestion/connections/{id}/syncs            → 200 sync history
+                                                       (sync_interval_minutes overrides default per connection)
+GET    /ingestion/connections                       → 200 list[Connection] (never includes credentials)
+PATCH  /ingestion/connections/{id}                  → 200 { sync_interval_minutes? }
+                                                       (allows tweaking sync frequency without credential changes)
+POST   /ingestion/connections/{id}/sync             → 202 SyncRun (manual trigger, ignores schedule)
+GET    /ingestion/connections/{id}/syncs            → 200 paginated sync history
 DELETE /ingestion/connections/{id}                  → 204 (revokes stored credentials)
+```
+
+Connection response (list or detail):
+
+```jsonc
+{
+  "id": "uuid",
+  "organization_id": "uuid",
+  "provider": "zendesk",
+  "account_label": "my-org.zendesk.com", // for operators, never sensitive
+  "sync_interval_minutes": 60, // null = use default; overridable per connection
+  "last_sync_at": "2026-08-03T14:22:00Z",
+  "last_sync_status": "success | failed",
+  "created_at": "2026-07-15T10:00:00Z",
+}
 ```
 
 ## New configuration

@@ -39,34 +39,39 @@ when retrieval returns nothing relevant. Plus a chat panel in the dashboard that
 
 ## Technical approach — backend
 
-- **Model.** `settings.anthropic_chat_model` (default `claude-sonnet-5`) — interactive, needs
-  stronger reasoning. **Read the `claude-api` skill before writing the call.** Specifically:
-  - **Do not pass `temperature`, `top_p`, or `top_k`** — non-default sampling parameters return
-    **400** on Sonnet 5.
-  - Thinking is **on by default** on Sonnet 5. `max_tokens` caps thinking _plus_ answer text, so
-    size it with headroom. For chat latency, prefer adaptive thinking with
-    `output_config={"effort": "low"}` over disabling thinking.
+- **Model.** `settings.anthropic_chat_model` (default **`claude-haiku-4-5`**) — cost-optimized for
+  retrieval-grounded Q&A. **Read the `claude-api` skill before writing the call.** Specifically:
+  - **Do not pass `temperature`, `top_p`, or `top_k`** — these return **400** on newer Claude models
+    when not supported.
+  - Use default sampling (no parameter overrides).
   - **Stream.** Use `client.messages.stream(...)`, not a blocking create.
-- **Query embedding.** Embed the user's question with the **same** Voyage model as the documents,
-  using the **query** input type (IM-2 exposes `embed_query` for exactly this). A mismatched model
+  - If future testing shows Haiku's reasoning is insufficient for complex analysis questions, upgrade
+    to Sonnet 5 and document the tradeoff in a follow-up ticket.
+- **Query embedding.** Embed the user's question with the **same** sentence-transformers model as
+  the documents (from IM-2), using the **query** input type via `embed_query()`. A mismatched model
   or input type silently degrades retrieval quality with no error — assert on it in a test.
-- **Retrieval.** pgvector cosine (`<=>`) ORDER BY + LIMIT `CHAT_TOP_K` (default 20). Apply
-  `dataset_id`, `source`, and date filters as **SQL WHERE predicates**, not post-filtering — post-
-  filtering after a top-k search silently returns fewer (or zero) results.
+- **Retrieval.** Query the in-memory HNSW index (built in IM-2) with the question embedding,
+  retrieve the top `CHAT_TOP_K` items by cosine distance, then **apply `dataset_id`, `source`, and
+  date filters as SQL WHERE predicates on the result set**. This ensures no data leaks across orgs
+  or outside the requested scope. Do not post-filter without the SQL layer — you must respect
+  authorization boundaries.
 - **Relevance floor.** Discard retrieved items whose cosine distance exceeds
   `CHAT_MAX_DISTANCE`. If nothing survives, return a grounded "I don't have feedback about that"
   answer **without calling Claude**. This is the anti-hallucination guardrail.
 - **Prompt.** System prompt in `app/insights/` instructing the model to answer _only_ from the
   supplied feedback, to say so when the feedback does not cover the question, and to reference items
   by the numeric index it is given. Include each item's `source` and `date` so temporal and
-  channel questions work.
+  channel questions work. **All prompt text lives in `app/insights/`, never in `app/api/`.**
 - **Citations.** Map the indices the model references back to `feedback_item_id`s and emit them as a
-  terminal SSE event, so the UI can render clickable sources.
-- **Conversation history.** Persist `conversations` and `chat_messages`. Send prior turns with each
-  request (the API is stateless). Cap history by token budget using
-  `client.messages.count_tokens`; drop oldest turns first.
-- **Transport.** `StreamingResponse` with `text/event-stream`. Events: `token`, `citations`, `done`,
-  `error`.
+  terminal SSE event, so the UI can render clickable sources. Each citation must include the
+  `feedback_item_id`, truncated `excerpt` (max 200 chars), `source`, and `date` if present.
+- **Conversation history.** Persist `conversations` and `chat_messages` tables. Send prior turns with
+  each request (the API is stateless). Cap history by token budget using
+  `client.messages.count_tokens`; drop oldest turns first. Never send more than
+  `CHAT_MAX_HISTORY_TOKENS` tokens of prior context.
+- **Transport.** `StreamingResponse` with `text/event-stream` and `Transfer-Encoding: chunked`.
+  **Event order (strictly):** `token*` (zero or more), then `citations` (once), then `done` (once).
+  If an error occurs, emit `error` and close the stream immediately (do not send `done`).
 
 ## Technical approach — frontend
 
@@ -84,14 +89,27 @@ when retrieval returns nothing relevant. Plus a chat panel in the dashboard that
 POST /chat/messages     (SSE)
   { "conversation_id": "uuid | null", "dataset_id": "uuid",
     "message": "What are people saying about checkout this month?",
-    "filters": { "source": ["support ticket"], "date_from": "...", "date_to": "..." } }
+    "filters": { "source": ["support ticket"], "date_from": "2026-01-01", "date_to": "2026-08-03" } }
 
-  event: token      data: {"text": "..."}
-  event: citations  data: {"items": [{"feedback_item_id": "...", "excerpt": "...", "source": "...", "date": "..."}]}
+  Response stream (in order):
+  event: token      data: {"text": "People are saying..."}
+  event: token      data: {"text": " checkout is..."}
+  ... (more tokens)
+  event: citations  data: {"items": [
+    {"feedback_item_id": "...", "excerpt": "checkout failed with error", "source": "support ticket", "date": "2026-08-01"},
+    ...
+  ]}
   event: done       data: {"conversation_id": "uuid", "message_id": "uuid"}
-  event: error      data: {"message": "..."}
 
-GET /chat/conversations/{id}   → 200 conversation with message history
+GET /chat/conversations/{id}   → 200 { id, created_at, messages: [...] }
+```
+
+Error example (stream ends early):
+
+```
+  event: token      data: {"text": "..."}
+  event: error      data: {"message": "API rate limit exceeded"}
+  [stream closes without done or citations]
 ```
 
 ## New configuration
@@ -116,10 +134,11 @@ basis in the PR), `CHAT_MAX_HISTORY_TOKENS` (default `20000`), `CHAT_MAX_TOKENS`
 7. A question whose answer is not present in the corpus produces an explicit "the feedback doesn't
    cover this" style answer rather than an invented one. Tested with a fixture corpus about
    shipping and a question about pricing.
-8. The model ID comes from `settings.anthropic_chat_model`. **No Claude model literal exists in
-   application code** (grep-proven). Changing the env var changes the model with no code change.
+8. The model ID comes from `settings.anthropic_chat_model`, defaulting to `claude-haiku-4-5`.
+   **No Claude model literal exists in application code** (grep-proven). Changing the env var
+   changes the model with no code change.
 9. **No `temperature`, `top_p`, or `top_k` is sent** on any Claude request (grep-proven — these
-   return 400 on Sonnet 5).
+   parameters either cause errors or are unsupported on newer models).
 10. Conversation history is persisted and replayed on subsequent turns; history is truncated by
     token budget, oldest-first, without breaking the turn structure.
 11. A provider error mid-stream emits an `error` event and closes the stream cleanly — the client
@@ -134,17 +153,18 @@ basis in the PR), `CHAT_MAX_HISTORY_TOKENS` (default `20000`), `CHAT_MAX_TOKENS`
 
 ## Test plan
 
-- Unit (Claude + Voyage mocked): query-embedding input type; filters as SQL predicates;
-  relevance-floor short-circuit makes zero Claude calls; history truncation; citation index →
-  item ID mapping.
+- Unit (Claude + sentence-transformers mocked): query-embedding input type; filters applied as SQL
+  predicates (not post-filtering); relevance-floor short-circuit makes zero Claude calls; history
+  truncation; citation index → item ID mapping; SSE event ordering strict (`token* → citations → done`).
 - Integration: ingest a two-topic fixture corpus → embed (stubbed deterministic embedder) → ask an
   in-corpus question (answer cites the right topic's items) and an out-of-corpus question (answer
-  declines).
-- Streaming: assert event ordering `token* → citations → done`, and that a mocked mid-stream failure
-  yields `error` and closes.
-- Frontend: streaming render test; citation click-through; error-state render.
+  declines with no Claude call). Assert HNSW index is queried, not raw embeddings.
+- Streaming: assert event ordering strict, that a mocked mid-stream failure emits `error` without
+  `done`, and stream closes cleanly.
+- Frontend: streaming render test; citation click-through; error-state render; verify citations are
+  tied to feedback items and don't leak across orgs.
 - Manual: real run against a ~1000-row dataset; paste one good and one deliberately out-of-scope
-  Q&A into the PR description.
+  Q&A into the PR description. Record token usage and latency for the good Q&A.
 
 ## Definition of done
 

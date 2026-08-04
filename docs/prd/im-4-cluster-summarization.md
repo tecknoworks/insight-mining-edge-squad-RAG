@@ -97,9 +97,13 @@ Enforced response schema per cluster:
 {
   "label": "string, 2-5 words, title case",
   "summary": "string, 2-4 sentences: what the theme is, and why it matters",
-  "quotes": ["verbatim string", "..."], // 3-5 items
+  "quotes": ["verbatim string up to 500 chars", "..."], // 3-5 items
 }
 ```
+
+**Quote length:** Claude may return very long feedback items. Truncate each quote to a maximum of
+**500 characters** before persisting. If truncation occurs, append `…` to indicate incompleteness.
+This keeps the response payload lean and the UI readable.
 
 ## New configuration
 
@@ -111,12 +115,14 @@ Enforced response schema per cluster:
 
 1. `GET /clusters/{cluster_id}/summary` calls Claude once, generates a `label`, `summary`, and
    3–5 `quotes`, and persists them in `cluster_summaries` with a `created_at` timestamp.
-2. **Every persisted quote is an exact substring of a feedback item belonging to that cluster**,
-   and each quote stores the `feedback_item_id` it came from. A test asserts this for every quote.
-3. A response containing a quote that is not present in the cluster's items is rejected and retried
+2. **Every persisted quote is an exact substring (up to 500 chars) of a feedback item belonging to that
+   cluster**, and each quote stores the `feedback_item_id` it came from. If Claude returns a quote
+   longer than 500 chars, truncate it (retaining the exact beginning) and append `…` if truncated.
+   A test asserts this for every quote: `quote in feedback_item.text` (or truncated equivalent).
+3. A response containing a quote that is not a substring of any cluster item is rejected and retried
    once; if the retry also fails, the endpoint returns **503** and does not store a partial summary.
-4. `label` is 2–5 words; `summary` is 2–4 sentences. Enforced by the JSON schema and re-checked in
-   code.
+4. `label` is 2–5 words; `summary` is 2–4 sentences; `quotes` are at most 500 chars each (with `…`
+   suffix if truncated). Enforced by the JSON schema and re-checked in code.
 5. Repeated calls to the same `cluster_id` within `SUMMARY_CACHE_TTL_HOURS` return the cached
    summary **without calling Claude** (verify via a mock's call count).
 6. `GET .../summary?force=true` bypasses the cache, calls Claude, and stores the new result.

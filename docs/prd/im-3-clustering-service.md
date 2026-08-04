@@ -43,10 +43,12 @@ exceed a threshold) and **on-demand clustering** (trigger on explicit request).
 - **Noise is a first-class outcome.** HDBSCAN labels outliers `-1`. Persist those items with
   `cluster_id = NULL` and report the count. Do not force them into the nearest cluster and do not
   drop them.
-- **Dimensionality reduction.** Cosine distance degrades in high dimensions. Reduce with UMAP to a
-  configurable working dimensionality (default 50) before clustering, using a fixed
-  `random_state`. If UMAP's install footprint proves problematic on the team's machines, fall back
-  to `TruncatedSVD` and record that decision in the spec.
+- **Dimensionality reduction.** Cosine distance degrades in high dimensions. Reduce with **UMAP**
+  to a configurable working dimensionality (default 50) before clustering, using a fixed
+  `random_state` (default `CLUSTERING_RANDOM_SEED`). UMAP is chosen over `TruncatedSVD` for better
+  preservation of local and global structure in high-dimensional spaces. **Constraint:** UMAP requires
+  `umap-learn` (add via `uv add`); the first team member to hit memory/disk issues should document
+  the footprint and revisit this choice, but do not preemptively substitute `TruncatedSVD`.
 - **2-D projection.** A **separate** UMAP fit to `n_components=2`, stored as
   `cluster_assignments.x` / `.y`. Do not reuse the 50-D reduction's first two axes — they are not a
   good 2-D layout.

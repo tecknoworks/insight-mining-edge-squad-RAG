@@ -58,7 +58,14 @@ panel showing Claude's label, summary, representative quotes, and the underlying
 - **Design.** Consult the `frontend-design` skill before styling. This is the product's hero screen;
   templated-default styling undersells it.
 - **Accessibility.** The chart is not the only affordance: a keyboard-navigable cluster list
-  (ordered by volume) selects clusters too, and selection state is shared between list and chart.
+  (ordered by volume, always visible or in a disclosure panel) allows selecting clusters without
+  the chart. **Interaction model:**
+  - List is focusable via Tab; arrow keys (↑/↓) navigate between clusters.
+  - Entering a cluster (Space/Enter on a list item, or clicking a point/centroid on the chart)
+    selects it and opens the detail panel.
+  - Selection state is synchronized bidirectionally: clicking the chart updates the list highlight,
+    and navigating the list updates the chart's visual focus.
+  - Noise points (unclustered) are included in the list if present.
 
 ## Acceptance criteria
 
@@ -73,8 +80,9 @@ panel showing Claude's label, summary, representative quotes, and the underlying
 5. Clicking a point or a centroid — or selecting from the cluster list — opens the detail panel
    with the cluster's label, summary, all representative quotes, and a paginated list of its
    feedback items from `GET /clusters/{id}/items`.
-6. The cluster list is keyboard-navigable and selection is synchronised in both directions between
-   list and chart.
+6. The cluster list is keyboard-navigable via Tab + arrow keys (↑/↓ to move, Space/Enter to select).
+   Selection is synchronized in both directions: list selection updates the chart focus, and chart
+   clicks update the list highlight. Visual focus indicator is always visible (no hidden outline).
 7. Filtering by `source` and by date range updates both the chart and the detail panel.
 8. Datasets above `MAX_PLOT_POINTS` downsample the rendered cloud and display "showing N of M
    points". Centroid sizes stay accurate to the full dataset.

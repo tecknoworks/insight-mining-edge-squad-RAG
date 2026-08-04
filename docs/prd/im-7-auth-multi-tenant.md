@@ -29,9 +29,9 @@ otherwise build to them.
 **In scope**
 
 - `organizations`, `users`, `memberships`, `refresh_tokens` tables + migrations.
-- Adding `organization_id` to `datasets` (and, transitively, scoping every child read).
+- Adding `organization_id` to `datasets` and all tenant-owned tables (see **Retrofit Checklist** below).
 - Auth endpoints; a FastAPI dependency that yields the authenticated user + org.
-- Retrofitting **every existing endpoint** from IM-1→IM-6 to scope by org.
+- Retrofitting **every existing endpoint** from IM-1→IM-6 to scope by org (checklist below).
 - A backfill migration that assigns pre-existing data to a default org.
 - Login UI, session handling, and route protection in the client.
 
@@ -42,6 +42,48 @@ otherwise build to them.
 - Billing, quotas, usage metering.
 - Password reset via email (no mail infrastructure exists). Ship an owner-initiated password reset
   instead and note the gap.
+
+## Retrofit Checklist
+
+Every endpoint from IM-1→IM-6 must add `organization_id` scoping. This table shows what must change per stage:
+
+| Stage    | Table Changes                                                                                                                 | Endpoint Changes                                                                                                                                                                        | Notes                                                           |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| **IM-1** | `datasets.organization_id` (NOT NULL FK)                                                                                      | `POST /ingestion/uploads`: auth dependency, scope to org; `GET /ingestion/datasets`: filter by org; `GET /ingestion/datasets/{id}`: 404 if not in org                                   | Backfill migration assigns all existing datasets to default org |
+| **IM-2** | `embedding_jobs` (if separate table): add `organization_id` or inherit via dataset FK                                         | `POST /ingestion/datasets/{id}/embed`: scope dataset lookup to org; `GET /ingestion/datasets/{id}/embed`: scope dataset lookup to org                                                   | Scoping via FK chain: dataset → org                             |
+| **IM-3** | `clusters`, `cluster_assignments`: scoped via `clusters.run_id → clustering_runs.dataset_id → datasets.organization_id`       | `POST /clusters/runs`: scope dataset lookup to org; `GET /clusters/runs/{run_id}`: scope via run's dataset; `GET /clusters`, `/clusters/{id}/items`, `/clusters/map`: scope via dataset | Scoping is deep (3 levels) — verify FK chain works in queries   |
+| **IM-4** | `cluster_summaries`, `cluster_quotes`: scoped via `cluster_summaries.cluster_id → clusters.run_id → datasets.organization_id` | `GET /clusters/{id}/summary`: scope via cluster's dataset                                                                                                                               | Same deep scoping as IM-3                                       |
+| **IM-5** | No DB changes (client only)                                                                                                   | Frontend: all dataset/cluster fetches inherit org scoping from backend                                                                                                                  | Verify generated API client receives scoped responses           |
+| **IM-6** | `conversations`, `chat_messages`: add `organization_id` FK                                                                    | `POST /chat/messages`: scope dataset to org; `GET /chat/conversations/{id}`: scope to org                                                                                               | Retrieval must filter results by org-scoped datasets            |
+
+**Migration strategy:**
+
+1. Add `organization_id` columns as **nullable** first (backward compatible).
+2. Create a backfill migration that sets all existing rows to a default org.
+3. In a second migration, add the `NOT NULL` constraint.
+4. This allows the migration to be reversible (drop NOT NULL, set nulls, etc.).
+
+**Query pattern for scoping:**
+
+```python
+# Anti-pattern (leaks data):
+dataset = session.query(Dataset).filter_by(id=dataset_id).first()
+
+# Correct pattern (scoped):
+dataset = session.query(Dataset).filter_by(
+    id=dataset_id, organization_id=current_org_id
+).first()
+
+# For deep scoping (e.g., cluster → run → dataset → org):
+cluster = session.query(Cluster).join(
+    ClusteringRun, Cluster.run_id == ClusteringRun.id
+).join(
+    Dataset, ClusteringRun.dataset_id == Dataset.id
+).filter(
+    Cluster.id == cluster_id,
+    Dataset.organization_id == current_org_id
+).first()
+```
 
 ## Technical approach
 

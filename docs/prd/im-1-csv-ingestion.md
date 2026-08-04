@@ -38,17 +38,20 @@ a handful of bad rows.
 
 ## Data contract
 
-Per `README.md`. Column matching is **case-insensitive and whitespace-trimmed** on the header row.
+Per `README.md`. Column matching is **by header name, case-insensitive, whitespace-trimmed** (order
+does not matter). Parsing reads the header row, normalizes column names, then processes data rows.
 
-| Column          | Required | Type                   | Notes                                                                                                                     |
-| --------------- | -------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `feedback_text` | Yes      | text                   | Rejected if missing, empty, or whitespace-only                                                                            |
-| `date`          | No       | timestamptz (nullable) | Accept ISO-8601 (`2026-03-14`, `2026-03-14T09:00:00Z`) and `MM/DD/YYYY`. Unparseable → row rejected, do not silently null |
-| `source`        | No       | text (nullable)        | Free text, trimmed. e.g. "support ticket", "app review", "survey"                                                         |
-| `customer_id`   | No       | text (nullable)        | Trimmed                                                                                                                   |
+| Column          | Required | Type                   | Notes                                                                                                                                                |
+| --------------- | -------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `feedback_text` | Yes      | text                   | Rejected if missing, empty, or whitespace-only. Column name match: `feedback_text`, `Feedback_Text`, `FEEDBACK TEXT` all resolve to the same column. |
+| `date`          | No       | timestamptz (nullable) | Accept ISO-8601 (`2026-03-14`, `2026-03-14T09:00:00Z`) and `MM/DD/YYYY`. Unparseable → row rejected, do not silently null                            |
+| `source`        | No       | text (nullable)        | Free text, trimmed. e.g. "support ticket", "app review", "survey". Whitespace-only cells become `NULL`.                                              |
+| `customer_id`   | No       | text (nullable)        | Trimmed. Whitespace-only cells become `NULL`.                                                                                                        |
 
-Unknown extra columns are ignored, not an error. `source`, `date`, and `customer_id` must survive
-untouched into `feedback_items` — downstream filtering and temporal analysis depend on them.
+**Column order does not matter.** The parser reads the header row, maps column names (case-insensitive),
+and processes each data row by matched column position. Unknown extra columns are ignored, not an error.
+`source`, `date`, and `customer_id` must survive untouched into `feedback_items` — downstream filtering
+and temporal analysis depend on them.
 
 ## Technical approach
 
@@ -125,8 +128,10 @@ Add to `app/core/config.py` **and** `server/.env.example` (with these defaults):
 5. A CSV whose header row lacks `feedback_text` (any case) returns **400** and persists **nothing**
    — no partial `datasets` row.
 6. A CSV where every row is invalid returns **400** and persists nothing.
-7. Header matching is case-insensitive and whitespace-tolerant: `Feedback_Text`, `feedback_text`,
-   and `FEEDBACK_TEXT` all resolve to the same column.
+7. Header matching is case-insensitive, whitespace-tolerant, and order-independent:
+   `Feedback_Text`, `feedback_text`, `FEEDBACK_TEXT`, `feedback text` (with space) all resolve to
+   the same column. A CSV with columns in any order (e.g., `customer_id`, `date`, `feedback_text`)
+   ingests correctly.
 8. A UTF-8 file with a BOM ingests correctly — the first header cell is not `﻿feedback_text`.
 9. Quoted fields containing commas, embedded newlines, and escaped double-quotes ingest as a single
    correct value.
