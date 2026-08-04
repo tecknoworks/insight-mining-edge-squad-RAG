@@ -55,7 +55,7 @@ insight-miner/
 │   │   ├── insights/       # Claude-powered summarization & chat
 │   │   ├── models/         # Pydantic schemas / DB models
 │   │   └── main.py
-│   ├── alembic/            # DB migrations (SQLAlchemy models → PostgreSQL schema)
+│   ├── alembic/            # DB migrations (SQLAlchemy models → SQLite schema)
 │   │   ├── versions/
 │   │   └── env.py
 │   ├── tests/
@@ -73,14 +73,16 @@ insight-miner/
 └── README.md
 ```
 
-> **No Docker.** Postgres (with `pgvector`) is provided by the developer locally (e.g. a native/Homebrew install) and reached via `DATABASE_URL` — the app does not manage the database lifecycle, and there is no `docker-compose.yml`.
+> **No Docker, no hosted database.** SQLite is a single-file database created automatically on first run and reached via `DATABASE_URL`. Vector indexing is handled in-memory via `hnswlib`. No external services to provision.
 
-**Suggested stack** (adjust as the project evolves):
+**Suggested stack** (cost-optimized for low maintenance):
 
 - **Backend**: Python, FastAPI, Pydantic — dependencies managed with `uv` (single `pyproject.toml` + `uv.lock`, no `requirements.txt`)
-- **Embeddings & Clustering**: `sentence-transformers` or Claude/Anthropic embeddings API, `scikit-learn` / `hdbscan`
-- **AI Summaries & Chat**: Anthropic Claude API
-- **Storage**: PostgreSQL (+ `pgvector`) or a dedicated vector store, with Alembic migrations under `server/alembic/`
+- **Database & Storage**: SQLite (single-file, auto-created on startup) with Alembic migrations under `server/alembic/`
+- **Embeddings**: `sentence-transformers` (open-source, runs locally — zero API cost)
+- **Vector Indexing**: `hnswlib` (in-memory HNSW, pure Python)
+- **Clustering**: `scikit-learn` / `hdbscan` (incremental and on-demand modes supported)
+- **AI Summaries & Chat**: Anthropic Claude API (Haiku model, cost-optimized; summaries cached and generated on-demand)
 - **Frontend**: React, TypeScript, Vite
 - **API Client**: Generated from FastAPI's OpenAPI schema via `openapi-ts` — see [Type Safety Across the Stack](#type-safety-across-the-stack) below
 - **State Management**: React Context + hooks, under `client/src/store/`
@@ -109,8 +111,9 @@ Run this whenever backend routes or schemas change, and commit the generated out
 - [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Node.js 18+ (the repo pins 22 via `.nvmrc` — run `nvm use`)
 - pnpm 9+ (`corepack enable pnpm`)
-- A local **PostgreSQL** with the `pgvector` extension available (no Docker — install natively, e.g. `brew install postgresql@15 pgvector`, create the database, then `CREATE EXTENSION IF NOT EXISTS vector;`)
-- An Anthropic API key (and a [Voyage AI](https://www.voyageai.com/) key for embeddings, once that stage lands)
+- An Anthropic API key (`ANTHROPIC_API_KEY` in `server/.env`)
+
+That's it — SQLite and open-source embeddings have zero external dependencies.
 
 ### Quick start (recommended)
 
@@ -119,12 +122,12 @@ From the repo root:
 ```bash
 pnpm install                       # installs the client workspace + husky git hooks (via the prepare script)
 uv sync --project server           # creates server/.venv and installs backend deps
-cp server/.env.example server/.env # then fill in ANTHROPIC_API_KEY (model vars + DATABASE_URL have working defaults)
+cp server/.env.example server/.env # then fill in ANTHROPIC_API_KEY (DATABASE_URL defaults to SQLite file)
 uv run --directory server alembic upgrade head # apply DB migrations (chain is a no-op until migrations are authored)
 pnpm dev                           # boots backend (:8000) + frontend (:5173) concurrently
 ```
 
-`pnpm dev` runs `uv run uvicorn app.main:app --reload` and the Vite dev server together — no need to `cd` into `server/` or `client/`. Verify the backend with `curl http://localhost:8000/health` (→ `{"status":"ok"}`).
+`pnpm dev` runs `uv run uvicorn app.main:app --reload` and the Vite dev server together — no need to `cd` into `server/` or `client/`. On first run, the backend creates `server/insight_miner.db` (SQLite file) automatically. Verify the backend with `curl http://localhost:8000/health` (→ `{"status":"ok"}`).
 
 ### Running an app on its own
 
@@ -157,10 +160,10 @@ bash .claude/skills/check-setup/check-setup.sh
 
 Which Claude model powers each AI-driven stage is a **system configuration decision**, not an application concern. Two env vars in `server/.env` (template: `server/.env.example`) select the model per stage:
 
-| Env var                         | Used by                                                                  | Default                                                                  |
-| ------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `ANTHROPIC_SUMMARIZATION_MODEL` | Batch cluster summarization (label a theme + pick representative quotes) | `claude-haiku-4-5` — high-volume batch task, cheapest tier is sufficient |
-| `ANTHROPIC_CHAT_MODEL`          | Chat-with-data (RAG over the feedback corpus)                            | `claude-sonnet-5` — interactive, needs stronger reasoning                |
+| Env var                         | Used by                                                                 | Default                                                   |
+| ------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------- |
+| `ANTHROPIC_SUMMARIZATION_MODEL` | On-demand cluster summarization (label + representative quotes), cached | `claude-haiku-4-5` — cost-optimized for feedback analysis |
+| `ANTHROPIC_CHAT_MODEL`          | Chat-with-data (RAG over the feedback corpus)                           | `claude-haiku-4-5` — cost-optimized; sufficient for Q&A   |
 
 Rules that apply project-wide:
 
