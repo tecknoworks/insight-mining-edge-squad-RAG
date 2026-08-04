@@ -9,7 +9,8 @@
 The skeleton boots but stores nothing. `server/app/ingestion/` and `server/app/api/ingestion.py`
 are documented stubs, there are no ORM models, and `server/alembic/versions/` is empty. This
 ticket lays the foundation the entire pipeline reads from: the first tables, the first migration,
-and the endpoint that turns an uploaded CSV into rows in Postgres.
+and the endpoint that turns an uploaded CSV into rows in SQLite. **Large uploads are automatically
+split into internal batches** — no artificial limits on file size or row count.
 
 ## Goal
 
@@ -62,12 +63,13 @@ untouched into `feedback_items` — downstream filtering and temporal analysis d
     `feedback_text` (text, not null), `submitted_at` (timestamptz, nullable, indexed),
     `source` (text, nullable, indexed), `customer_id` (text, nullable), `row_number` (int — the
     1-based source-CSV line, for traceability), `created_at`.
-- **Migration** — `uv run alembic revision --autogenerate`. The migration must begin with
-  `CREATE EXTENSION IF NOT EXISTS vector;` so IM-2 can add a `vector` column without a second
-  extension step. Confirm `server/alembic/env.py` imports the models' metadata; wire it if not.
+- **Migration** — `uv run alembic revision --autogenerate`. Confirm `server/alembic/env.py`
+  imports the models' metadata; wire it if not.
 - **Parsing** (`app/ingestion/`) — stdlib `csv` over a text stream. Do **not** load the file fully
-  into memory and do **not** add pandas for this. Handle a UTF-8 BOM (`utf-8-sig`). Persist in
-  batches (~1000 rows) inside a single transaction.
+  into memory and do **not** add pandas for this. Handle a UTF-8 BOM (`utf-8-sig`). **Persist in
+  batches** of `INTERNAL_BATCH_SIZE` rows (default ~1000), committing each batch separately so large
+  uploads succeed even if one batch fails. There is no user-facing file size or row limit; the
+  endpoint streams the input and splits it internally.
 - **Route** (`app/api/ingestion.py`) — thin. Accepts the upload, calls the ingestion module,
   returns the report. No parsing logic in the handler.
 
@@ -77,10 +79,9 @@ untouched into `feedback_items` — downstream filtering and temporal analysis d
 POST /ingestion/uploads
   Content-Type: multipart/form-data
   Body: file=<csv>
-  → 201 IngestionReport
+  → 201 IngestionReport (even for very large files; batched internally)
   → 400  file is not CSV / header row missing the required `feedback_text` column /
          zero valid rows
-  → 413  file exceeds MAX_UPLOAD_BYTES
 
 GET /ingestion/datasets            → 200 list[DatasetSummary]  (newest first, paginated)
 GET /ingestion/datasets/{id}       → 200 DatasetDetail | 404
@@ -108,8 +109,7 @@ GET /ingestion/datasets/{id}       → 200 DatasetDetail | 404
 
 Add to `app/core/config.py` **and** `server/.env.example` (with these defaults):
 
-- `MAX_UPLOAD_BYTES` = `52428800` (50 MB)
-- `MAX_ROWS_PER_UPLOAD` = `100000`
+- `INTERNAL_BATCH_SIZE` = `1000` (rows committed per transaction; no upload limit)
 - `MAX_REPORTED_ERRORS` = `100`
 
 ## Acceptance criteria
@@ -130,17 +130,18 @@ Add to `app/core/config.py` **and** `server/.env.example` (with these defaults):
 8. A UTF-8 file with a BOM ingests correctly — the first header cell is not `﻿feedback_text`.
 9. Quoted fields containing commas, embedded newlines, and escaped double-quotes ingest as a single
    correct value.
-10. A file over `MAX_UPLOAD_BYTES` returns **413** before the body is fully buffered into memory.
-11. A file over `MAX_ROWS_PER_UPLOAD` returns **400** with a message naming the limit.
-12. `errors` is capped at `MAX_REPORTED_ERRORS` entries and `errors_truncated` is `true` when the
+10. A very large file (1M+ rows) is accepted and batched internally, committing every `INTERNAL_BATCH_SIZE`
+    rows. If one batch fails, prior batches are persisted and the response indicates partial success
+    with accurate `rows_accepted` and `rows_rejected` counts.
+11. `errors` is capped at `MAX_REPORTED_ERRORS` entries and `errors_truncated` is `true` when the
     cap is hit. `rows_rejected` still reports the true total.
-13. `GET /ingestion/datasets` returns datasets newest-first with accurate counts.
-14. `GET /ingestion/datasets/{id}` returns **404** for an unknown UUID and **422** for a malformed
+12. `GET /ingestion/datasets` returns datasets newest-first with accurate counts.
+13. `GET /ingestion/datasets/{id}` returns **404** for an unknown UUID and **422** for a malformed
     one.
-15. `uv run alembic upgrade head` then `uv run alembic downgrade -1` runs clean on an empty
-    database. The upgrade creates the `vector` extension.
-16. No parsing, validation, or persistence logic lives in `app/api/ingestion.py`.
-17. `client/src/api/` is regenerated and committed; `pnpm --filter client build` passes.
+14. `uv run alembic upgrade head` then `uv run alembic downgrade -1` runs clean on an empty
+    database.
+15. No parsing, validation, or persistence logic lives in `app/api/ingestion.py`.
+16. `client/src/api/` is regenerated and committed; `pnpm --filter client build` passes.
 
 ## Test plan
 

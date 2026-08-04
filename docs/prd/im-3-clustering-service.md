@@ -14,7 +14,8 @@ the visualization, the dashboard — reads the output of this stage.
 
 Run unsupervised clustering over a dataset's embeddings, persist the resulting clusters and
 per-item assignments, and produce a stable 2-D coordinate per item so IM-5 can plot the map without
-recomputing anything.
+recomputing anything. Support both **incremental clustering** (only re-cluster after new embeddings
+exceed a threshold) and **on-demand clustering** (trigger on explicit request).
 
 ## Scope
 
@@ -57,6 +58,12 @@ recomputing anything.
 - **Re-runs.** A new run supersedes the previous one for that dataset. Keep run history
   (`clustering_runs`) so a bad parameter change is recoverable; mark exactly one run per dataset as
   current.
+- **Incremental vs. on-demand clustering.** Add a mode flag to the run request:
+  - `mode: "on_demand"` — always re-cluster the entire dataset regardless of how many new embeddings exist.
+  - `mode: "incremental"` (default) — only re-cluster if the number of unembed items since the last run
+    exceeds `CLUSTERING_INCREMENTAL_THRESHOLD` (env var). If the threshold is not met, return the
+    current run without recomputing (cost optimization for frequent API calls). Track the threshold
+    in the env var and allow per-request overrides in the request body.
 
 ## Data model
 
@@ -70,13 +77,15 @@ recomputing anything.
 ## API contract
 
 ```
-POST /clusters/runs                       → 202 ClusteringRun    body: {dataset_id, params?}
+POST /clusters/runs                       → 202 ClusteringRun    body: {dataset_id, mode?, params?}
                                           → 409 dataset has no embedded items
 GET  /clusters/runs/{run_id}              → 200 ClusteringRun (state + counts)
 GET  /clusters?dataset_id=<id>            → 200 list[ClusterSummary]   (current run)
 GET  /clusters/{cluster_id}/items         → 200 paginated list[FeedbackItem]
 GET  /clusters/map?dataset_id=<id>        → 200 ClusterMap  (points for IM-5)
 ```
+
+`mode` in POST body: `"on_demand"` (always re-cluster) or `"incremental"` (default, only if new embeddings exceed threshold).
 
 `ClusterMap` returns one point per item — `{feedback_item_id, cluster_id | null, x, y}` — plus the
 cluster list with `item_count`. Keep this endpoint's payload lean; it is the visualization's hot
@@ -111,10 +120,15 @@ Request-body `params` may override per run; defaults come from settings.
     `submitted_at`, and `customer_id`.
 11. `GET /clusters/map` returns one point per item and the payload is a flat array — no nested
     per-item text (that would blow up the frontend payload).
-12. **`app/clustering/` does not import `anthropic`** and no cluster is written with a non-null
+12. **Incremental clustering** (default): calling `POST /clusters/runs` with fewer than
+    `CLUSTERING_INCREMENTAL_THRESHOLD` new embeddings since the last run returns the current run
+    **without recomputing** (no new `clustering_runs` row, no HDBSCAN invocation).
+13. **On-demand clustering**: calling `POST /clusters/runs` with `mode: "on_demand"` always
+    re-clusters, regardless of the incremental threshold.
+14. **`app/clustering/` does not import `anthropic`** and no cluster is written with a non-null
     `label`.
-13. No clustering logic in `app/api/clusters.py`.
-14. `client/src/api/` regenerated and committed.
+15. No clustering logic in `app/api/clusters.py`.
+16. `client/src/api/` regenerated and committed.
 
 ## Test plan
 

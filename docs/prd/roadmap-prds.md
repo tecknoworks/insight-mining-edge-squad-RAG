@@ -63,48 +63,46 @@ cheapest to do **before** IM-8 and ideally before the dataset count grows.
 Add with `uv add` (backend) / `pnpm --filter client add` (frontend). **Never create a
 `requirements.txt`.**
 
-| Ticket | Backend                                                                 | Frontend   |
-| ------ | ----------------------------------------------------------------------- | ---------- |
-| IM-1   | —                                                                       | —          |
-| IM-2   | `voyageai`                                                              | —          |
-| IM-3   | `scikit-learn`, `hdbscan`, `umap-learn`, `numpy`                        | —          |
-| IM-4   | — (`anthropic` already present)                                         | —          |
-| IM-5   | —                                                                       | `recharts` |
-| IM-6   | `sse-starlette` (optional)                                              | —          |
-| IM-7   | `pyjwt`, `argon2-cffi` (or `passlib[argon2]`)                           | —          |
-| IM-8   | `cryptography`, `apscheduler`, `httpx` (already a dev dep — promote it) | —          |
+| Ticket | Backend                                                                    | Frontend   |
+| ------ | -------------------------------------------------------------------------- | ---------- |
+| IM-1   | —                                                                          | —          |
+| IM-2   | `sentence-transformers` (open-source embeddings), `hnswlib` (vector index) | —          |
+| IM-3   | `scikit-learn`, `hdbscan`, `umap-learn`, `numpy`                           | —          |
+| IM-4   | — (`anthropic` already present)                                            | —          |
+| IM-5   | —                                                                          | `recharts` |
+| IM-6   | `sse-starlette` (optional)                                                 | —          |
+| IM-7   | `pyjwt`, `argon2-cffi` (or `passlib[argon2]`)                              | —          |
+| IM-8   | `cryptography`, `apscheduler`, `httpx` (already a dev dep — promote it)    | —          |
 
 ## Appendix — configuration added across the roadmap
 
 Every variable below must land in **both** `server/app/core/config.py` and `server/.env.example`.
 
-| Variable                          | Ticket | Default                       |
-| --------------------------------- | ------ | ----------------------------- |
-| `MAX_UPLOAD_BYTES`                | IM-1   | `52428800`                    |
-| `MAX_ROWS_PER_UPLOAD`             | IM-1   | `100000`                      |
-| `MAX_REPORTED_ERRORS`             | IM-1   | `100`                         |
-| `VOYAGE_EMBEDDING_MODEL`          | IM-2   | confirmed during `/spec-plan` |
-| `EMBEDDING_DIMENSION`             | IM-2   | matches the model             |
-| `EMBEDDING_BATCH_SIZE`            | IM-2   | `128`                         |
-| `EMBEDDING_MAX_RETRIES`           | IM-2   | `5`                           |
-| `CLUSTERING_MIN_CLUSTER_SIZE`     | IM-3   | `15`                          |
-| `CLUSTERING_MIN_SAMPLES`          | IM-3   | `5`                           |
-| `CLUSTERING_REDUCED_DIMENSIONS`   | IM-3   | `50`                          |
-| `CLUSTERING_RANDOM_SEED`          | IM-3   | `42`                          |
-| `SUMMARIZATION_CONCURRENCY`       | IM-4   | `4`                           |
-| `SUMMARIZATION_MAX_SAMPLE_TOKENS` | IM-4   | `8000`                        |
-| `SUMMARIZATION_MAX_TOKENS`        | IM-4   | `1024`                        |
-| `CHAT_TOP_K`                      | IM-6   | `20`                          |
-| `CHAT_MAX_DISTANCE`               | IM-6   | `0.6`                         |
-| `CHAT_MAX_HISTORY_TOKENS`         | IM-6   | `20000`                       |
-| `CHAT_MAX_TOKENS`                 | IM-6   | `8000`                        |
-| `SECRET_KEY`                      | IM-7   | **none — required**           |
-| `ACCESS_TOKEN_TTL_MINUTES`        | IM-7   | `15`                          |
-| `REFRESH_TOKEN_TTL_DAYS`          | IM-7   | `30`                          |
-| `PASSWORD_MIN_LENGTH`             | IM-7   | `12`                          |
-| `CONNECTOR_ENCRYPTION_KEY`        | IM-8   | **none — required**           |
-| `CONNECTOR_SYNC_INTERVAL_MINUTES` | IM-8   | `60`                          |
-| `CONNECTOR_MAX_RECORDS_PER_SYNC`  | IM-8   | `10000`                       |
+| Variable                           | Ticket | Default                                    |
+| ---------------------------------- | ------ | ------------------------------------------ |
+| `INTERNAL_BATCH_SIZE`              | IM-1   | `1000` (no upload limit; split internally) |
+| `MAX_REPORTED_ERRORS`              | IM-1   | `100`                                      |
+| `EMBEDDING_MODEL`                  | IM-2   | `all-MiniLM-L6-v2` (sentence-transformers) |
+| `EMBEDDING_DIMENSION`              | IM-2   | `384` (matches the model)                  |
+| `EMBEDDING_BATCH_SIZE`             | IM-2   | `32`                                       |
+| `CLUSTERING_MIN_CLUSTER_SIZE`      | IM-3   | `15`                                       |
+| `CLUSTERING_MIN_SAMPLES`           | IM-3   | `5`                                        |
+| `CLUSTERING_REDUCED_DIMENSIONS`    | IM-3   | `50`                                       |
+| `CLUSTERING_RANDOM_SEED`           | IM-3   | `42`                                       |
+| `CLUSTERING_INCREMENTAL_THRESHOLD` | IM-3   | `100` (new embeddings before re-cluster)   |
+| `SUMMARY_CACHE_TTL_HOURS`          | IM-4   | `24`                                       |
+| `CHAT_TOP_K`                       | IM-6   | `20`                                       |
+| `CHAT_MAX_DISTANCE`                | IM-6   | `0.6`                                      |
+| `CHAT_MAX_HISTORY_TOKENS`          | IM-6   | `20000`                                    |
+| `CHAT_MAX_TOKENS`                  | IM-6   | `8000`                                     |
+| `DATA_RETENTION_DAYS`              | IM-8   | `30` (archive feedback older than N days)  |
+| `SECRET_KEY`                       | IM-7   | **none — required**                        |
+| `ACCESS_TOKEN_TTL_MINUTES`         | IM-7   | `15`                                       |
+| `REFRESH_TOKEN_TTL_DAYS`           | IM-7   | `30`                                       |
+| `PASSWORD_MIN_LENGTH`              | IM-7   | `12`                                       |
+| `CONNECTOR_ENCRYPTION_KEY`         | IM-8   | **none — required**                        |
+| `CONNECTOR_SYNC_INTERVAL_MINUTES`  | IM-8   | `60`                                       |
+| `CONNECTOR_MAX_RECORDS_PER_SYNC`   | IM-8   | `10000`                                    |
 
 `ANTHROPIC_SUMMARIZATION_MODEL` and `ANTHROPIC_CHAT_MODEL` already exist and must not be duplicated,
-renamed, or read from anywhere other than `app/core/config.py`.
+renamed, or read from anywhere other than `app/core/config.py`. Both default to `claude-haiku-4-5`.
