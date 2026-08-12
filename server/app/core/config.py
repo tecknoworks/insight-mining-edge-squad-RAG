@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     voyage_api_key: str = ""
 
     # --- Database ---
-    database_url: str = "postgresql+psycopg://insight:insight@localhost:5432/insight_miner"
+    database_url: str = "sqlite:///./insight_miner.db"
 
     # --- HTTP / CORS ---
     cors_origins: list[str] = ["http://localhost:5173"]

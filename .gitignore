@@ -27,3 +27,9 @@ server/.env
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# SQLite DB (single-file, auto-created on first run) + sidecar files
+server/*.db
+server/*.db-journal
+server/*.db-wal
+server/*.db-shm
