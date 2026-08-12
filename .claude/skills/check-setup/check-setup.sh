@@ -105,13 +105,6 @@ else
   fail "uv not found (required for the backend)" "install: 'curl -LsSf https://astral.sh/uv/install.sh | sh' — see https://docs.astral.sh/uv/"
 fi
 
-# psql client (optional — used only to probe the DB below).
-if command -v psql >/dev/null 2>&1; then
-  pass "psql client present (used for DB connectivity probe)"
-else
-  warn "psql client not found" "optional — install libpq/postgresql-client to let this doctor probe the DB; app uses the psycopg driver regardless"
-fi
-
 # ==========================================================================
 section "2. Environment files"
 # ==========================================================================
@@ -186,7 +179,7 @@ else
 fi
 
 # ==========================================================================
-section "4. Database connectivity (Postgres + pgvector)"
+section "4. Database connectivity (SQLite)"
 # ==========================================================================
 
 # Extract DATABASE_URL from server/.env, else fall back to the config default.
@@ -194,25 +187,34 @@ DB_URL=""
 if [ -f server/.env ]; then
   DB_URL="$(grep -E '^[[:space:]]*DATABASE_URL=' server/.env | tail -n1 | sed -E 's/^[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')"
 fi
-[ -z "$DB_URL" ] && DB_URL="postgresql+psycopg://insight:insight@localhost:5432/insight_miner"
+[ -z "$DB_URL" ] && DB_URL="sqlite:///./insight_miner.db"
 
-# Normalize the SQLAlchemy-style DSN (postgresql+psycopg://) to a libpq one for psql.
-PSQL_URL="$(printf '%s' "$DB_URL" | sed -E 's#^postgresql\+psycopg://#postgresql://#')"
-
-if command -v psql >/dev/null 2>&1; then
-  if psql "$PSQL_URL" -tAc 'SELECT 1' >/dev/null 2>&1; then
-    pass "connected to Postgres"
-    if psql "$PSQL_URL" -tAc "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
-      pass "pgvector extension is enabled on the database"
+case "$DB_URL" in
+  sqlite:///*)
+    # Path is relative to server/ (where the app runs from) unless it's a
+    # sqlite:////absolute/path.db (four slashes = absolute).
+    DB_PATH="${DB_URL#sqlite:///}"
+    case "$DB_PATH" in
+      /*) : ;; # already absolute
+      *) DB_PATH="server/$DB_PATH" ;;
+    esac
+    DB_DIR="$(dirname "$DB_PATH")"
+    if [ -f "$DB_PATH" ]; then
+      if [ -w "$DB_PATH" ]; then
+        pass "SQLite DB file exists and is writable ($DB_PATH)"
+      else
+        fail "SQLite DB file exists but is not writable ($DB_PATH)" "fix permissions: 'chmod u+w $DB_PATH'"
+      fi
+    elif [ -d "$DB_DIR" ] && [ -w "$DB_DIR" ]; then
+      pass "SQLite DB not yet created — will auto-create on first run ($DB_PATH)"
     else
-      warn "pgvector extension not enabled on this database" "connect and run: 'CREATE EXTENSION IF NOT EXISTS vector;' (needs the pgvector package installed on the server)"
+      fail "cannot create SQLite DB — directory missing or not writable ($DB_DIR)" "check the path in DATABASE_URL and directory permissions"
     fi
-  else
-    warn "could not connect to Postgres at the configured DATABASE_URL" "start a local Postgres and create the DB/user; DSN: $PSQL_URL"
-  fi
-else
-  warn "skipping DB probe (no psql client)" "install postgresql-client to verify connectivity + pgvector, or just try 'pnpm dev' and watch for DB errors"
-fi
+    ;;
+  *)
+    warn "DATABASE_URL is not a sqlite:// DSN ('$DB_URL')" "this repo's DB is SQLite (see CLAUDE.md/README) — expected 'sqlite:///./insight_miner.db' unless the team has deliberately changed direction"
+    ;;
+esac
 
 # ==========================================================================
 section "Summary"

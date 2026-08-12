@@ -15,10 +15,10 @@ bash .claude/skills/check-setup/check-setup.sh
 
 It checks, in order, and prints `PASS` / `WARN` / `FAIL` with a fix hint on each non-green line:
 
-1. **System requirements** — `node` (>= 18; `.nvmrc` pins 22), `pnpm` (>= 9), a Python 3.11+ interpreter, `uv`, and the optional `psql` client.
+1. **System requirements** — `node` (>= 18; `.nvmrc` pins 22), `pnpm` (>= 9), a Python 3.11+ interpreter, and `uv`.
 2. **Environment files** — `server/.env` (required; holds `ANTHROPIC_API_KEY`, `DATABASE_URL`, and the per-stage model vars).
 3. **Installed dependencies** — root `node_modules`, the `client` workspace, husky git hooks, and `server/.venv` (with backend imports actually resolving).
-4. **Database connectivity** — connects to `DATABASE_URL` and confirms the `pgvector` extension is enabled.
+4. **Database connectivity** — confirms `DATABASE_URL` points at a SQLite file whose path is writable (creatable on first run if it doesn't exist yet). No external service, no Docker.
 
 The script never mutates the repo or installs anything — it only inspects. It exits non-zero if any check **FAILs** (WARNs don't fail it).
 
@@ -34,8 +34,7 @@ Report the results grouped as **FAIL** (blocks boot) vs **WARN** (works, but sho
 | `node_modules` / client deps / husky hooks missing | `pnpm install` (repo root — its `prepare` also installs the git hooks)                                        |
 | `server/.venv` missing or backend imports fail     | `uv sync --project server`                                                                                    |
 | `server/.env` missing                              | `cp server/.env.example server/.env`, then fill in `ANTHROPIC_API_KEY`                                        |
-| Postgres unreachable                               | Start a local Postgres and create the DB/user in `DATABASE_URL` (no Docker in this repo — developer-provided) |
-| `pgvector` not enabled                             | Connect to the DB and run `CREATE EXTENSION IF NOT EXISTS vector;`                                            |
+| SQLite path not writable / directory missing       | Fix permissions or the path in `DATABASE_URL` (default `sqlite:///./insight_miner.db`, relative to `server/`) |
 
 After applying fixes, **re-run the script** until there are no FAILs. Confirm with the user before running any install command that changes their machine or the repo.
 
@@ -69,7 +68,7 @@ Confirm Vite reports it's listening on `http://localhost:5173`.
 pnpm dev
 ```
 
-When you run a server as a foreground process to test it, use a background run and stop it after you've confirmed it responds — never leave a dev server running when you hand control back to the user. If a boot fails, capture the actual error output and map it back to a step-1 check (e.g. a psycopg connection error → step 4 DB, a `ModuleNotFoundError` → `uv sync`, an Anthropic auth error → `ANTHROPIC_API_KEY` in `server/.env`).
+When you run a server as a foreground process to test it, use a background run and stop it after you've confirmed it responds — never leave a dev server running when you hand control back to the user. If a boot fails, capture the actual error output and map it back to a step-1 check (e.g. a SQLite `OperationalError`/permissions error → step 4 DB, a `ModuleNotFoundError` → `uv sync`, an Anthropic auth error → `ANTHROPIC_API_KEY` in `server/.env`).
 
 ## 4. Report
 
