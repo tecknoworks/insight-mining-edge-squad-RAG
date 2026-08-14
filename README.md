@@ -156,6 +156,24 @@ Run the bundled doctor to check tooling, env files, dependencies, and DB connect
 bash .claude/skills/check-setup/check-setup.sh
 ```
 
+### Troubleshooting
+
+**`sqlite3.OperationalError: no such table: <table>` on any backend request.**
+The SQLite _file_ is created automatically on startup, but its _tables_ are not — those only
+exist after Alembic migrations have run. This happens whenever the DB file is missing, fresh, or
+was deleted (e.g. after `rm server/insight_miner.db`, or on a first-time checkout). Fix:
+
+```bash
+cd server && uv run alembic upgrade head
+```
+
+Then retry the request — no server restart needed, since it's the same underlying file.
+
+Note: `DATABASE_URL`'s relative `sqlite:///./insight_miner.db` form (the default) always resolves
+to `server/insight_miner.db`, regardless of which directory a command is run from — so `pnpm dev`
+(launched from the repo root) and a manual `cd server && uv run alembic ...` both read/write the
+same file.
+
 ## AI Model Configuration
 
 Which Claude model powers each AI-driven stage is a **system configuration decision**, not an application concern. Two env vars in `server/.env` (template: `server/.env.example`) select the model per stage:

@@ -11,6 +11,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.14",
     "anthropic>=0.69",
+    "python-multipart>=0.0.9",
 ]
 
 [dependency-groups]
@@ -34,6 +35,11 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's `Depends(...)`/`Query(...)` default-argument pattern is idiomatic,
+# not the mutable-default-argument bug B008 guards against.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
 [tool.mypy]
 python_version = "3.11"
