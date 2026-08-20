@@ -21,6 +21,15 @@ class DatasetStatus(StrEnum):
     SUMMARIZED = "summarized"
 
 
+class EmbeddingJobState(StrEnum):
+    """Lifecycle of one embedding run for a dataset."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class IngestionError(BaseModel):
     """One rejected CSV row, reported back to the caller."""
 
@@ -77,3 +86,20 @@ class DatasetDetail(DatasetSummary):
     """Dataset metadata plus every feedback item ingested from it."""
 
     feedback_items: list[FeedbackItemOut] = []
+
+
+class EmbeddingJobStatus(BaseModel):
+    """The latest embedding run's state for a dataset."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    dataset_id: uuid.UUID
+    state: EmbeddingJobState
+    items_total: int
+    items_embedded: int
+    items_failed: int
+    model: str
+    dimension: int
+    error: str | None
+    started_at: datetime | None
+    finished_at: datetime | None

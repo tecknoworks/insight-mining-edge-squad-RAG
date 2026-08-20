@@ -42,8 +42,10 @@ class Settings(BaseSettings):
     # Chat-with-data (RAG) — interactive, needs stronger reasoning.
     anthropic_chat_model: str = "claude-sonnet-5"
 
-    # --- Embeddings (Voyage AI — Anthropic-recommended hosted provider) ---
-    voyage_api_key: str = ""
+    # --- Embeddings (open-source sentence-transformers, runs locally) ---
+    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_dimension: int = 384
+    embedding_batch_size: int = 32
 
     # --- Database ---
     database_url: str = "sqlite:///./insight_miner.db"

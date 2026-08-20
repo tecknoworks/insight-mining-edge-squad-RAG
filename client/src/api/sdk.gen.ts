@@ -18,6 +18,12 @@ import type {
   GetDatasetData,
   GetDatasetResponse,
   GetDatasetError,
+  GetEmbeddingJobData,
+  GetEmbeddingJobResponse,
+  GetEmbeddingJobError,
+  StartEmbeddingJobData,
+  StartEmbeddingJobResponse,
+  StartEmbeddingJobError,
 } from './types.gen';
 import { client as _heyApiClient } from './client.gen';
 
@@ -99,6 +105,40 @@ export const getDataset = <ThrowOnError extends boolean = false>(
 ) => {
   return (options.client ?? _heyApiClient).get<GetDatasetResponse, GetDatasetError, ThrowOnError>({
     url: '/ingestion/datasets/{dataset_id}',
+    ...options,
+  });
+};
+
+/**
+ * Get Embedding Job
+ * Fetch the latest embedding job's status for a dataset.
+ */
+export const getEmbeddingJob = <ThrowOnError extends boolean = false>(
+  options: Options<GetEmbeddingJobData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).get<
+    GetEmbeddingJobResponse,
+    GetEmbeddingJobError,
+    ThrowOnError
+  >({
+    url: '/ingestion/datasets/{dataset_id}/embed',
+    ...options,
+  });
+};
+
+/**
+ * Start Embedding Job
+ * Start or resume embedding every un-embedded feedback item in a dataset.
+ */
+export const startEmbeddingJob = <ThrowOnError extends boolean = false>(
+  options: Options<StartEmbeddingJobData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).post<
+    StartEmbeddingJobResponse,
+    StartEmbeddingJobError,
+    ThrowOnError
+  >({
+    url: '/ingestion/datasets/{dataset_id}/embed',
     ...options,
   });
 };
