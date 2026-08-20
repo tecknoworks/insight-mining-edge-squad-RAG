@@ -37,6 +37,27 @@ export type DatasetSummary = {
 };
 
 /**
+ * Lifecycle of one embedding run for a dataset.
+ */
+export type EmbeddingJobState = 'pending' | 'running' | 'completed' | 'failed';
+
+/**
+ * The latest embedding run's state for a dataset.
+ */
+export type EmbeddingJobStatus = {
+  dataset_id: string;
+  state: EmbeddingJobState;
+  items_total: number;
+  items_embedded: number;
+  items_failed: number;
+  model: string;
+  dimension: number;
+  error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+/**
  * A single persisted feedback row, as returned by the API.
  */
 export type FeedbackItemOut = {
@@ -185,6 +206,61 @@ export type GetDatasetResponses = {
 };
 
 export type GetDatasetResponse = GetDatasetResponses[keyof GetDatasetResponses];
+
+export type GetEmbeddingJobData = {
+  body?: never;
+  path: {
+    dataset_id: string;
+  };
+  query?: never;
+  url: '/ingestion/datasets/{dataset_id}/embed';
+};
+
+export type GetEmbeddingJobErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetEmbeddingJobError = GetEmbeddingJobErrors[keyof GetEmbeddingJobErrors];
+
+export type GetEmbeddingJobResponses = {
+  /**
+   * Successful Response
+   */
+  200: EmbeddingJobStatus;
+};
+
+export type GetEmbeddingJobResponse = GetEmbeddingJobResponses[keyof GetEmbeddingJobResponses];
+
+export type StartEmbeddingJobData = {
+  body?: never;
+  path: {
+    dataset_id: string;
+  };
+  query?: never;
+  url: '/ingestion/datasets/{dataset_id}/embed';
+};
+
+export type StartEmbeddingJobErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type StartEmbeddingJobError = StartEmbeddingJobErrors[keyof StartEmbeddingJobErrors];
+
+export type StartEmbeddingJobResponses = {
+  /**
+   * Successful Response
+   */
+  202: EmbeddingJobStatus;
+};
+
+export type StartEmbeddingJobResponse =
+  StartEmbeddingJobResponses[keyof StartEmbeddingJobResponses];
 
 export type ClientOptions = {
   baseUrl: 'http://localhost:8000' | (string & {});
