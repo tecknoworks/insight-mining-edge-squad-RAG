@@ -12,6 +12,8 @@ dependencies = [
     "alembic>=1.14",
     "anthropic>=0.69",
     "python-multipart>=0.0.9",
+    "sentence-transformers>=6.0.0",
+    "hnswlib>=0.8.0",
 ]
 
 [dependency-groups]
@@ -42,7 +44,7 @@ select = ["E", "F", "I", "UP", "B"]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 plugins = ["pydantic.mypy"]
 strict = true
 ignore_missing_imports = true

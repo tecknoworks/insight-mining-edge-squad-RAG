@@ -6,15 +6,22 @@ Thin handlers only — parsing, validation, and persistence live in
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.embeddings.client import EmbeddingClient, get_embedding_client
+from app.embeddings.service import (
+    DatasetNotFoundError,
+    JobAlreadyRunningError,
+    run_job,
+    start_or_resume_job,
+)
 from app.ingestion.service import HeaderValidationError, ingest_csv
-from app.models.db import Dataset
-from app.models.schemas import DatasetDetail, DatasetSummary, IngestionReport
+from app.models.db import Dataset, EmbeddingJob
+from app.models.schemas import DatasetDetail, DatasetSummary, EmbeddingJobStatus, IngestionReport
 
 router = APIRouter(prefix="/ingestion", tags=["ingestion"])
 
@@ -61,3 +68,41 @@ def get_dataset(dataset_id: uuid.UUID, db: Session = Depends(get_db)) -> Dataset
     if dataset is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="dataset not found")
     return dataset
+
+
+@router.post(
+    "/datasets/{dataset_id}/embed",
+    response_model=EmbeddingJobStatus,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def start_embedding_job(
+    dataset_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    embedding_client: EmbeddingClient = Depends(get_embedding_client),
+) -> EmbeddingJob:
+    """Start or resume embedding every un-embedded feedback item in a dataset."""
+    try:
+        job = start_or_resume_job(db, dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except JobAlreadyRunningError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    if job.items_total > 0:
+        background_tasks.add_task(run_job, dataset_id, embedding_client)
+    return job
+
+
+@router.get("/datasets/{dataset_id}/embed", response_model=EmbeddingJobStatus)
+def get_embedding_job(dataset_id: uuid.UUID, db: Session = Depends(get_db)) -> EmbeddingJob:
+    """Fetch the latest embedding job's status for a dataset."""
+    job = db.execute(
+        select(EmbeddingJob).where(EmbeddingJob.dataset_id == dataset_id)
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="no embedding job found for this dataset",
+        )
+    return job
