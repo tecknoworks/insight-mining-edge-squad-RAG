@@ -179,3 +179,17 @@ class ClusterAssignment(Base):
     run: Mapped["ClusteringRun"] = relationship(back_populates="assignments")
     feedback_item: Mapped["FeedbackItem"] = relationship(foreign_keys=[feedback_item_id])
     cluster: Mapped["Cluster | None"] = relationship(foreign_keys=[cluster_id])
+
+
+class ClusterSummary(Base):
+    """Claude-generated summary of a cluster: label, summary text, and representative quotes."""
+
+    __tablename__ = "cluster_summaries"
+
+    cluster_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("clusters.id", ondelete="CASCADE"), nullable=False, primary_key=True
+    )
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    quotes: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)

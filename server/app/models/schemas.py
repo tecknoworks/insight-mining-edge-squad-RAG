@@ -178,3 +178,22 @@ class ClusterItemsPage(BaseModel):
     """Paginated list of feedback items in a cluster."""
 
     items: list[ClusterItemPage]
+
+
+class ClusterSummaryQuote(BaseModel):
+    """One representative quote from a cluster summary."""
+
+    text: str
+    feedback_item_id: uuid.UUID
+
+
+class ClusterSummaryResponse(BaseModel):
+    """Claude-generated summary for a cluster with label, summary, and quotes."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    cluster_id: uuid.UUID
+    label: str
+    summary: str
+    quotes: list[ClusterSummaryQuote]
+    cached_at: datetime

@@ -497,3 +497,53 @@ def test_semantic_clustering_separates_themes(client: TestClient, db: Session):
         assert len(themes_in_cluster) <= 1, (
             f"Cluster {cluster['id']} mixes themes {themes_in_cluster}: {cluster_texts[:3]}..."
         )
+
+
+def test_get_cluster_summary_404_on_missing_cluster(client: TestClient, db: Session):
+    """GET /clusters/{cluster_id}/summary returns 404 when cluster doesn't exist."""
+    response = client.get(f"/clusters/{uuid.uuid4()}/summary")
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_get_cluster_summary_requires_api_key(
+    client: TestClient, db: Session, sample_dataset_with_embeddings, force: bool
+):
+    """GET /clusters/{cluster_id}/summary returns 503 when API key not configured."""
+    # Create clustering run with a small cluster size to ensure we get clusters
+    dataset = sample_dataset_with_embeddings
+    response = client.post(
+        "/clusters/runs",
+        json={
+            "dataset_id": str(dataset.id),
+            "mode": "on_demand",
+            "params": {"min_cluster_size": 2, "min_samples": 1, "reduced_dimensions": 5},
+        },
+    )
+    assert response.status_code == 202
+
+    # Get clusters
+    clusters_resp = client.get(f"/clusters?dataset_id={dataset.id}")
+    assert clusters_resp.status_code == 200
+    clusters = clusters_resp.json()
+
+    if len(clusters) == 0:
+        pytest.skip("No clusters generated from sample dataset")
+
+    cluster_id = clusters[0]["id"]
+
+    # Mock settings to have no API key
+    def override_get_settings():
+        from app.core.config import Settings
+        settings = Settings()
+        settings.anthropic_api_key = ""  # Empty key
+        return settings
+
+    from app.core.config import get_settings
+    app.dependency_overrides[get_settings] = override_get_settings
+
+    try:
+        response = client.get(f"/clusters/{cluster_id}/summary?force={str(force).lower()}")
+        assert response.status_code == 503
+    finally:
+        app.dependency_overrides.clear()
