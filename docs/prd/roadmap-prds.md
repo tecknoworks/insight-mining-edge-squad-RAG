@@ -42,19 +42,18 @@ The spec may add more; it may not drop any.
 
 ### Ticket index
 
-| ID   | Title                                                            | File                                                                         | Depends on |
-| ---- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------- |
-| IM-1 | CSV ingestion endpoint + validation                              | [im-1-csv-ingestion.md](im-1-csv-ingestion.md)                               | —          |
-| IM-2 | Embedding pipeline                                               | [im-2-embedding-pipeline.md](im-2-embedding-pipeline.md)                     | IM-1       |
-| IM-3 | Clustering service                                               | [im-3-clustering-service.md](im-3-clustering-service.md)                     | IM-2       |
-| IM-4 | Claude-powered cluster summarization                             | [im-4-cluster-summarization.md](im-4-cluster-summarization.md)               | IM-3       |
-| IM-5 | Cluster visualization component                                  | [im-5-cluster-visualization.md](im-5-cluster-visualization.md)               | IM-3, IM-4 |
-| IM-6 | Chat-with-data endpoint + UI                                     | [im-6-chat-with-data.md](im-6-chat-with-data.md)                             | IM-2       |
-| IM-7 | Auth / multi-tenant support                                      | [im-7-auth-multi-tenant.md](im-7-auth-multi-tenant.md)                       | IM-1       |
-| IM-8 | Additional ingestion sources (Zendesk, Intercom, app store APIs) | [im-8-additional-ingestion-sources.md](im-8-additional-ingestion-sources.md) | IM-1, IM-7 |
+| ID   | Title                                | File                                                           | Depends on |
+| ---- | ------------------------------------ | -------------------------------------------------------------- | ---------- |
+| IM-1 | CSV ingestion endpoint + validation  | [im-1-csv-ingestion.md](im-1-csv-ingestion.md)                 | —          |
+| IM-2 | Embedding pipeline                   | [im-2-embedding-pipeline.md](im-2-embedding-pipeline.md)       | IM-1       |
+| IM-3 | Clustering service                   | [im-3-clustering-service.md](im-3-clustering-service.md)       | IM-2       |
+| IM-4 | Claude-powered cluster summarization | [im-4-cluster-summarization.md](im-4-cluster-summarization.md) | IM-3       |
+| IM-5 | Cluster visualization component      | [im-5-cluster-visualization.md](im-5-cluster-visualization.md) | IM-3, IM-4 |
+| IM-6 | Chat-with-data endpoint + UI         | [im-6-chat-with-data.md](im-6-chat-with-data.md)               | IM-2       |
+| IM-7 | Auth / multi-tenant support          | [im-7-auth-multi-tenant.md](im-7-auth-multi-tenant.md)         | IM-1       |
 
 IM-5 and IM-6 can run in parallel once IM-4 lands. IM-7 is a cross-cutting retrofit and is
-cheapest to do **before** IM-8 and ideally before the dataset count grows.
+ideally done before the dataset count grows.
 
 ---
 
@@ -72,7 +71,6 @@ Add with `uv add` (backend) / `pnpm --filter client add` (frontend). **Never cre
 | IM-5   | —                                                                          | `recharts` |
 | IM-6   | `sse-starlette` (optional)                                                 | —          |
 | IM-7   | `pyjwt`, `argon2-cffi` (or `passlib[argon2]`)                              | —          |
-| IM-8   | `cryptography`, `apscheduler`, `httpx` (already a dev dep — promote it)    | —          |
 
 ## Appendix — configuration added across the roadmap
 
@@ -95,14 +93,10 @@ Every variable below must land in **both** `server/app/core/config.py` and `serv
 | `CHAT_MAX_DISTANCE`                | IM-6   | `0.6`                                      |
 | `CHAT_MAX_HISTORY_TOKENS`          | IM-6   | `20000`                                    |
 | `CHAT_MAX_TOKENS`                  | IM-6   | `8000`                                     |
-| `DATA_RETENTION_DAYS`              | IM-8   | `30` (archive feedback older than N days)  |
 | `SECRET_KEY`                       | IM-7   | **none — required**                        |
 | `ACCESS_TOKEN_TTL_MINUTES`         | IM-7   | `15`                                       |
 | `REFRESH_TOKEN_TTL_DAYS`           | IM-7   | `30`                                       |
 | `PASSWORD_MIN_LENGTH`              | IM-7   | `12`                                       |
-| `CONNECTOR_ENCRYPTION_KEY`         | IM-8   | **none — required**                        |
-| `CONNECTOR_SYNC_INTERVAL_MINUTES`  | IM-8   | `60`                                       |
-| `CONNECTOR_MAX_RECORDS_PER_SYNC`   | IM-8   | `10000`                                    |
 
 `ANTHROPIC_SUMMARIZATION_MODEL` and `ANTHROPIC_CHAT_MODEL` already exist and must not be duplicated,
 renamed, or read from anywhere other than `app/core/config.py`. Both default to `claude-haiku-4-5`.
