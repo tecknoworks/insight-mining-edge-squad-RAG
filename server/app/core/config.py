@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     internal_batch_size: int = 1000
     max_reported_errors: int = 100
 
+    # --- Clustering (unsupervised grouping via HDBSCAN + UMAP) ---
+    clustering_min_cluster_size: int = 15
+    clustering_min_samples: int = 5
+    clustering_reduced_dimensions: int = 50
+    clustering_random_seed: int = 42
+    clustering_incremental_threshold: int = 10
+
     @field_validator("database_url")
     @classmethod
     def _anchor_relative_sqlite_path(cls, value: str) -> str:

@@ -103,3 +103,60 @@ class EmbeddingJobStatus(BaseModel):
     error: str | None
     started_at: datetime | None
     finished_at: datetime | None
+
+
+class ClusteringRun(BaseModel):
+    """A clustering run — maps feedback items to semantic clusters."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    dataset_id: uuid.UUID
+    algorithm: str
+    params: dict
+    random_seed: int
+    cluster_count: int
+    noise_count: int
+    is_current: bool
+    created_at: datetime
+
+
+class Cluster(BaseModel):
+    """One semantic cluster from a clustering run."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    run_id: uuid.UUID
+    cluster_index: int
+    item_count: int
+    label: str | None
+    summary: str | None
+    created_at: datetime
+
+
+class ClusterSummary(BaseModel):
+    """Lightweight cluster info (for listing)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    cluster_index: int
+    item_count: int
+    label: str | None
+
+
+class ClusterAssignmentPoint(BaseModel):
+    """One point in the cluster visualization map."""
+
+    feedback_item_id: uuid.UUID
+    cluster_id: uuid.UUID | None
+    x: float
+    y: float
+
+
+class ClusterMap(BaseModel):
+    """Flat payload for cluster visualization — all points + cluster metadata."""
+
+    points: list[ClusterAssignmentPoint]
+    clusters: list[ClusterSummary]

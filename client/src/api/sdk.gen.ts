@@ -24,6 +24,21 @@ import type {
   StartEmbeddingJobData,
   StartEmbeddingJobResponse,
   StartEmbeddingJobError,
+  StartClusteringRunData,
+  StartClusteringRunResponse,
+  StartClusteringRunError,
+  GetClusteringRunData,
+  GetClusteringRunResponse,
+  GetClusteringRunError,
+  ListClustersData,
+  ListClustersResponse,
+  ListClustersError,
+  ListClusterItemsData,
+  ListClusterItemsResponse,
+  ListClusterItemsError,
+  GetClusterMapData,
+  GetClusterMapResponse,
+  GetClusterMapError,
 } from './types.gen';
 import { client as _heyApiClient } from './client.gen';
 
@@ -139,6 +154,103 @@ export const startEmbeddingJob = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: '/ingestion/datasets/{dataset_id}/embed',
+    ...options,
+  });
+};
+
+/**
+ * Start Clustering Run
+ * Start a clustering run for a dataset.
+ *
+ * Args:
+ * request: Request body with dataset_id, mode, and optional params.
+ *
+ * Returns:
+ * 202 with the ClusteringRun.
+ * 404 if dataset not found.
+ * 409 if dataset has no embeddings.
+ */
+export const startClusteringRun = <ThrowOnError extends boolean = false>(
+  options: Options<StartClusteringRunData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).post<
+    StartClusteringRunResponse,
+    StartClusteringRunError,
+    ThrowOnError
+  >({
+    url: '/clusters/runs',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
+};
+
+/**
+ * Get Clustering Run
+ * Fetch a clustering run by ID.
+ */
+export const getClusteringRun = <ThrowOnError extends boolean = false>(
+  options: Options<GetClusteringRunData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).get<
+    GetClusteringRunResponse,
+    GetClusteringRunError,
+    ThrowOnError
+  >({
+    url: '/clusters/runs/{run_id}',
+    ...options,
+  });
+};
+
+/**
+ * List Clusters
+ * List clusters from the current run for a dataset, ordered by size descending.
+ */
+export const listClusters = <ThrowOnError extends boolean = false>(
+  options: Options<ListClustersData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).get<
+    ListClustersResponse,
+    ListClustersError,
+    ThrowOnError
+  >({
+    url: '/clusters',
+    ...options,
+  });
+};
+
+/**
+ * List Cluster Items
+ * List feedback items in a cluster, paginated.
+ */
+export const listClusterItems = <ThrowOnError extends boolean = false>(
+  options: Options<ListClusterItemsData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).get<
+    ListClusterItemsResponse,
+    ListClusterItemsError,
+    ThrowOnError
+  >({
+    url: '/clusters/{cluster_id}/items',
+    ...options,
+  });
+};
+
+/**
+ * Get Cluster Map
+ * Get the cluster map for visualization — all points + cluster metadata.
+ */
+export const getClusterMap = <ThrowOnError extends boolean = false>(
+  options: Options<GetClusterMapData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).get<
+    GetClusterMapResponse,
+    GetClusterMapError,
+    ThrowOnError
+  >({
+    url: '/clusters/map',
     ...options,
   });
 };

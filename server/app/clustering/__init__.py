@@ -1,6 +1,7 @@
-"""Clustering stage: unsupervised grouping of embeddings into themes.
+"""Semantic clustering of feedback items.
 
-Groups feedback by meaning (HDBSCAN or k-means) so semantically similar items
-land in the same theme regardless of wording. Keep this logic out of route
-handlers. No implementation yet — added via spec.
+Runs unsupervised clustering over embeddings to group feedback by meaning.
+Supports both incremental (threshold-based) and on-demand (explicit) re-clustering.
+Uses HDBSCAN for automatic cluster count discovery and explicit noise handling.
+Dimensionality reduction (UMAP) happens before clustering and for 2D visualization.
 """
