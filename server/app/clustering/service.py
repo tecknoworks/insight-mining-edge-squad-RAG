@@ -4,7 +4,7 @@ Handles incremental vs on-demand clustering, persistence, and noise handling.
 """
 
 import uuid
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from sqlalchemy import func, select
@@ -41,16 +41,17 @@ def should_cluster(
         # No prior run, must cluster
         return True
 
-    # Count un-embedded items added since the last run
-    new_unembedded = db.execute(
+    # Count newly embedded items added after the last run — these are the data
+    # points not present when the current clustering ran.
+    new_embedded = db.execute(
         select(func.count(FeedbackItem.id)).where(
             FeedbackItem.dataset_id == dataset_id,
-            FeedbackItem.embedding.is_(None),
+            FeedbackItem.embedding.isnot(None),
             FeedbackItem.created_at > current_run.created_at,
         )
     ).scalar()
 
-    return new_unembedded >= threshold
+    return (new_embedded or 0) >= threshold
 
 
 def run_clustering(
@@ -90,7 +91,7 @@ def run_clustering(
 
     # Extract vectors (BLOB → float32)
     vectors = np.array(
-        [np.frombuffer(item.embedding, dtype=np.float32) for item in embedded_items],
+        [np.frombuffer(cast(bytes, item.embedding), dtype=np.float32) for item in embedded_items],
         dtype=np.float32,
     )
 

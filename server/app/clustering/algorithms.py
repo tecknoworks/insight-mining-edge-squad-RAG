@@ -53,18 +53,19 @@ class HDBSCANClusterer:
         n_items = vectors.shape[0]
 
         # Reduce to working dimensionality
-        # Skip UMAP for very small datasets to avoid convergence issues
+        # Skip UMAP for very small datasets to avoid convergence issues.
+        # Clamp n_components to n_items - 2: UMAP's spectral init requires k < N.
+        safe_dims = min(self.reduced_dimensions, max(n_items - 2, 2))
         vectors_reduced = vectors
-        if n_items >= 15 and vectors.shape[1] > self.reduced_dimensions:
+        if n_items >= 15 and vectors.shape[1] > safe_dims:
             try:
                 umap_reduce = umap.UMAP(
-                    n_components=self.reduced_dimensions,
+                    n_components=safe_dims,
                     random_state=self.random_seed,
                     metric="cosine",
                 )
                 vectors_reduced = umap_reduce.fit_transform(vectors)
-            except (ValueError, RuntimeError):
-                # If UMAP fails, fall back to original vectors
+            except (ValueError, RuntimeError, TypeError):
                 vectors_reduced = vectors
 
         # Cluster on reduced vectors
@@ -89,7 +90,7 @@ class HDBSCANClusterer:
                 x_2d, y_2d = coords_2d[:, 0], coords_2d[:, 1]
             else:
                 raise ValueError("Use fallback for small datasets")
-        except (ValueError, RuntimeError):
+        except (ValueError, RuntimeError, TypeError):
             # For tiny datasets, use first two principal components or scaled indices
             if vectors.shape[1] >= 2:
                 # Use first two dimensions, normalized

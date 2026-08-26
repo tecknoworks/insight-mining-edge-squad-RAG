@@ -9,7 +9,18 @@ auth/tenant scoping is implemented here.
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -110,7 +121,7 @@ class ClusteringRun(Base):
         ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True
     )
     algorithm: Mapped[str] = mapped_column(String, nullable=False)
-    params: Mapped[dict] = mapped_column(JSON, nullable=False)
+    params: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     random_seed: Mapped[int] = mapped_column(Integer, nullable=False)
     cluster_count: Mapped[int] = mapped_column(Integer, nullable=False)
     noise_count: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -160,6 +171,10 @@ class ClusterAssignment(Base):
     )
     x: Mapped[float] = mapped_column(Float, nullable=False)
     y: Mapped[float] = mapped_column(Float, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "feedback_item_id", name="uq_cluster_assignments_run_item"),
+    )
 
     run: Mapped["ClusteringRun"] = relationship(back_populates="assignments")
     feedback_item: Mapped["FeedbackItem"] = relationship(foreign_keys=[feedback_item_id])

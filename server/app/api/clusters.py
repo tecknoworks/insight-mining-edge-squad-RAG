@@ -18,6 +18,8 @@ from app.core.db import get_db
 from app.models.db import Cluster, ClusterAssignment, ClusteringRun, Dataset, FeedbackItem
 from app.models.schemas import (
     ClusterAssignmentPoint,
+    ClusterItemPage,
+    ClusterItemsPage,
     ClusterMap,
     ClusterSummary,
 )
@@ -112,22 +114,24 @@ def list_clusters(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no clustering run found")
 
-    clusters = db.execute(
-        select(Cluster)
-        .where(Cluster.run_id == run.id)
-        .order_by(Cluster.item_count.desc())
-    ).scalars().all()
+    clusters = list(
+        db.execute(
+            select(Cluster)
+            .where(Cluster.run_id == run.id)
+            .order_by(Cluster.item_count.desc())
+        ).scalars().all()
+    )
 
     return clusters
 
 
-@router.get("/{cluster_id}/items")
+@router.get("/{cluster_id}/items", response_model=ClusterItemsPage)
 def list_cluster_items(
     cluster_id: uuid.UUID,
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
+) -> ClusterItemsPage:
     """List feedback items in a cluster, paginated."""
     cluster = db.get(Cluster, cluster_id)
     if cluster is None:
@@ -146,18 +150,9 @@ def list_cluster_items(
         .offset(offset)
     ).scalars().all()
 
-    return {
-        "items": [
-            {
-                "id": item.id,
-                "feedback_text": item.feedback_text,
-                "source": item.source,
-                "submitted_at": item.submitted_at,
-                "customer_id": item.customer_id,
-            }
-            for item in items
-        ]
-    }
+    return ClusterItemsPage(
+        items=[ClusterItemPage.model_validate(item) for item in items]
+    )
 
 
 @router.get("/map", response_model=ClusterMap)

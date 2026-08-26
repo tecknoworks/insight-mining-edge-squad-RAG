@@ -113,7 +113,7 @@ class ClusteringRun(BaseModel):
     id: uuid.UUID
     dataset_id: uuid.UUID
     algorithm: str
-    params: dict
+    params: dict[str, object]
     random_seed: int
     cluster_count: int
     noise_count: int
@@ -160,3 +160,21 @@ class ClusterMap(BaseModel):
 
     points: list[ClusterAssignmentPoint]
     clusters: list[ClusterSummary]
+
+
+class ClusterItemPage(BaseModel):
+    """One feedback item as returned by the cluster items endpoint."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    feedback_text: str
+    source: str | None
+    submitted_at: datetime | None
+    customer_id: str | None
+
+
+class ClusterItemsPage(BaseModel):
+    """Paginated list of feedback items in a cluster."""
+
+    items: list[ClusterItemPage]

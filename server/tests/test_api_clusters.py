@@ -1,5 +1,6 @@
 """Integration tests for the clustering API."""
 
+import datetime
 import uuid
 from pathlib import Path
 
@@ -172,7 +173,7 @@ def test_get_cluster_map(client: TestClient, db: Session, sample_dataset_with_em
 def test_incremental_clustering_skips_recompute(
     client: TestClient, db: Session, sample_dataset_with_embeddings
 ):
-    """Incremental mode returns current run if threshold not met."""
+    """Incremental mode returns current run when no new embedded items exceed threshold."""
     dataset_id = sample_dataset_with_embeddings.id
 
     # First run
@@ -187,8 +188,7 @@ def test_incremental_clustering_skips_recompute(
     assert response.status_code == 202
     run1_id = response.json()["id"]
 
-    # Second call with incremental mode, no new embeddings
-    # Should return the same run without recomputing
+    # Second call — no new embedded items added, threshold (10) not met
     response = client.post(
         "/clusters/runs",
         json={
@@ -198,8 +198,56 @@ def test_incremental_clustering_skips_recompute(
     )
     assert response.status_code == 202
     run2_id = response.json()["id"]
-    # Should be the same run
-    assert run2_id == run1_id
+    assert run2_id == run1_id  # same run returned, no recompute
+
+
+def test_incremental_clustering_triggers_when_threshold_met(
+    client: TestClient, db: Session, sample_dataset_with_embeddings
+):
+    """Incremental mode re-clusters when new embedded items exceed threshold."""
+    dataset_id = sample_dataset_with_embeddings.id
+
+    # First run (threshold default is 10)
+    response = client.post(
+        "/clusters/runs",
+        json={
+            "dataset_id": str(dataset_id),
+            "mode": "incremental",
+            "params": {"min_cluster_size": 2},
+        },
+    )
+    assert response.status_code == 202
+    run1_id = response.json()["id"]
+
+    # Get the run's created_at so we can backdate new items before it
+    run1 = db.get(ClusteringRun, uuid.UUID(run1_id))
+    assert run1 is not None
+    after_run = run1.created_at + datetime.timedelta(seconds=1)
+
+    # Add 15 newly embedded items with created_at after the run
+    for i in range(15):
+        item = FeedbackItem(
+            dataset_id=dataset_id,
+            feedback_text=f"new feedback {i}",
+            row_number=100 + i,
+        )
+        item.embedding = np.array([float(i)] * 384, dtype=np.float32).tobytes()
+        item.created_at = after_run  # type: ignore[assignment]
+        db.add(item)
+    db.commit()
+
+    # Second incremental call — 15 new embedded items >= threshold (10)
+    response = client.post(
+        "/clusters/runs",
+        json={
+            "dataset_id": str(dataset_id),
+            "mode": "incremental",
+            "params": {"min_cluster_size": 2},
+        },
+    )
+    assert response.status_code == 202
+    run2_id = response.json()["id"]
+    assert run2_id != run1_id  # new run was created
 
 
 def test_on_demand_clustering_always_recomputes(
@@ -351,3 +399,101 @@ def test_list_cluster_items(client: TestClient, db: Session, sample_dataset_with
             assert "source" in item
             assert "submitted_at" in item
             assert "customer_id" in item
+
+
+def test_semantic_clustering_separates_themes(client: TestClient, db: Session):
+    """Semantic grouping test: three distinct themes must land in separate clusters.
+
+    Uses theme-based base vectors + small noise so items within a theme are
+    geometrically similar — this proves HDBSCAN groups by meaning, not coincidence.
+    """
+    payment_texts = [
+        "can't pay", "checkout failed", "payment error", "billing issue",
+        "card declined", "payment timeout", "transaction failed", "charge error",
+        "payment gateway down", "can't complete purchase", "payment stuck",
+        "refund not received", "double charged", "payment pending", "billing error",
+        "credit card rejected", "payment method failed", "transaction error",
+        "checkout error", "can't process payment",
+    ]
+    shipping_texts = [
+        "slow shipping", "lost package", "delivery late", "shipping delay",
+        "package missing", "tracking not working", "shipment delayed",
+        "delivery failed", "package damaged", "wrong address shipped",
+        "shipping takes forever", "no tracking updates", "delivery stuck",
+        "package lost in transit", "slow delivery", "shipping cost high",
+        "delivery person didn't knock", "package left outside", "shipping lag",
+        "delivery day wrong",
+    ]
+    feature_texts = [
+        "need dark mode", "want export", "request PDF", "dark theme needed",
+        "need API access", "want bulk operations", "request scheduling",
+        "need reporting", "want analytics", "request integration",
+        "dark mode please", "need batch processing", "want mobile app",
+        "need webhooks", "request filters", "want search", "need sorting",
+        "want pagination", "request caching", "need compression",
+    ]
+
+    dataset = Dataset(filename="semantic_test.csv", status=DatasetStatus.INGESTED)
+    db.add(dataset)
+    db.flush()
+
+    # Each theme gets a distinct base vector; items in a theme add tiny noise so
+    # they stay geometrically close together but not identical.
+    rng_base = np.random.RandomState(42)
+    theme_bases = [rng_base.randn(384).astype(np.float32) for _ in range(3)]
+
+    all_texts = payment_texts + shipping_texts + feature_texts
+    theme_labels = [0] * 20 + [1] * 20 + [2] * 20
+
+    for i, (text, theme) in enumerate(zip(all_texts, theme_labels, strict=True)):
+        noise = np.random.RandomState(i).randn(384).astype(np.float32) * 0.05
+        vec = theme_bases[theme] + noise
+        item = FeedbackItem(
+            dataset_id=dataset.id,
+            feedback_text=text,
+            row_number=i + 1,
+        )
+        item.embedding = vec.tobytes()
+        db.add(item)
+    db.commit()
+
+    response = client.post(
+        "/clusters/runs",
+        json={
+            "dataset_id": str(dataset.id),
+            "mode": "on_demand",
+            "params": {"min_cluster_size": 5, "min_samples": 2, "reduced_dimensions": 10},
+        },
+    )
+
+    assert response.status_code == 202
+    run_data = response.json()
+    assert run_data["cluster_count"] >= 2, (
+        f"Expected ≥2 clusters for 3 themes, got {run_data['cluster_count']}"
+    )
+
+    response = client.get(f"/clusters?dataset_id={dataset.id}")
+    assert response.status_code == 200
+    clusters = response.json()
+
+    payment_set = set(payment_texts)
+    shipping_set = set(shipping_texts)
+    feature_set = set(feature_texts)
+
+    for cluster in clusters:
+        items_resp = client.get(f"/clusters/{cluster['id']}/items?limit=500")
+        assert items_resp.status_code == 200
+        cluster_texts = [it["feedback_text"] for it in items_resp.json()["items"]]
+
+        themes_in_cluster = set()
+        for text in cluster_texts:
+            if text in payment_set:
+                themes_in_cluster.add("payment")
+            elif text in shipping_set:
+                themes_in_cluster.add("shipping")
+            elif text in feature_set:
+                themes_in_cluster.add("feature")
+
+        assert len(themes_in_cluster) <= 1, (
+            f"Cluster {cluster['id']} mixes themes {themes_in_cluster}: {cluster_texts[:3]}..."
+        )
