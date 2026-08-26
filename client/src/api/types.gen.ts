@@ -5,6 +5,80 @@ export type BodyUploadCsv = {
 };
 
 /**
+ * One point in the cluster visualization map.
+ */
+export type ClusterAssignmentPoint = {
+  feedback_item_id: string;
+  cluster_id: string | null;
+  x: number;
+  y: number;
+};
+
+/**
+ * One feedback item as returned by the cluster items endpoint.
+ */
+export type ClusterItemPage = {
+  id: string;
+  feedback_text: string;
+  source: string | null;
+  submitted_at: string | null;
+  customer_id: string | null;
+};
+
+/**
+ * Paginated list of feedback items in a cluster.
+ */
+export type ClusterItemsPage = {
+  items: Array<ClusterItemPage>;
+};
+
+/**
+ * Flat payload for cluster visualization — all points + cluster metadata.
+ */
+export type ClusterMap = {
+  points: Array<ClusterAssignmentPoint>;
+  clusters: Array<ClusterSummary>;
+};
+
+/**
+ * Lightweight cluster info (for listing).
+ */
+export type ClusterSummary = {
+  id: string;
+  cluster_index: number;
+  item_count: number;
+  label: string | null;
+};
+
+/**
+ * A clustering run — maps feedback items to semantic clusters.
+ */
+export type ClusteringRun = {
+  id: string;
+  dataset_id: string;
+  algorithm: string;
+  params: {
+    [key: string]: unknown;
+  };
+  random_seed: number;
+  cluster_count: number;
+  noise_count: number;
+  is_current: boolean;
+  created_at: string;
+};
+
+/**
+ * Request body for POST /clusters/runs.
+ */
+export type ClusteringRunRequest = {
+  dataset_id: string;
+  mode?: string;
+  params?: {
+    [key: string]: unknown;
+  } | null;
+};
+
+/**
  * Dataset metadata plus every feedback item ingested from it.
  */
 export type DatasetDetail = {
@@ -261,6 +335,143 @@ export type StartEmbeddingJobResponses = {
 
 export type StartEmbeddingJobResponse =
   StartEmbeddingJobResponses[keyof StartEmbeddingJobResponses];
+
+export type StartClusteringRunData = {
+  body: ClusteringRunRequest;
+  path?: never;
+  query?: never;
+  url: '/clusters/runs';
+};
+
+export type StartClusteringRunErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type StartClusteringRunError = StartClusteringRunErrors[keyof StartClusteringRunErrors];
+
+export type StartClusteringRunResponses = {
+  /**
+   * Successful Response
+   */
+  202: ClusteringRun;
+};
+
+export type StartClusteringRunResponse =
+  StartClusteringRunResponses[keyof StartClusteringRunResponses];
+
+export type GetClusteringRunData = {
+  body?: never;
+  path: {
+    run_id: string;
+  };
+  query?: never;
+  url: '/clusters/runs/{run_id}';
+};
+
+export type GetClusteringRunErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetClusteringRunError = GetClusteringRunErrors[keyof GetClusteringRunErrors];
+
+export type GetClusteringRunResponses = {
+  /**
+   * Successful Response
+   */
+  200: ClusteringRun;
+};
+
+export type GetClusteringRunResponse = GetClusteringRunResponses[keyof GetClusteringRunResponses];
+
+export type ListClustersData = {
+  body?: never;
+  path?: never;
+  query: {
+    dataset_id: string;
+  };
+  url: '/clusters';
+};
+
+export type ListClustersErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ListClustersError = ListClustersErrors[keyof ListClustersErrors];
+
+export type ListClustersResponses = {
+  /**
+   * Successful Response
+   */
+  200: Array<ClusterSummary>;
+};
+
+export type ListClustersResponse = ListClustersResponses[keyof ListClustersResponses];
+
+export type ListClusterItemsData = {
+  body?: never;
+  path: {
+    cluster_id: string;
+  };
+  query?: {
+    limit?: number;
+    offset?: number;
+  };
+  url: '/clusters/{cluster_id}/items';
+};
+
+export type ListClusterItemsErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ListClusterItemsError = ListClusterItemsErrors[keyof ListClusterItemsErrors];
+
+export type ListClusterItemsResponses = {
+  /**
+   * Successful Response
+   */
+  200: ClusterItemsPage;
+};
+
+export type ListClusterItemsResponse = ListClusterItemsResponses[keyof ListClusterItemsResponses];
+
+export type GetClusterMapData = {
+  body?: never;
+  path?: never;
+  query: {
+    dataset_id: string;
+  };
+  url: '/clusters/map';
+};
+
+export type GetClusterMapErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetClusterMapError = GetClusterMapErrors[keyof GetClusterMapErrors];
+
+export type GetClusterMapResponses = {
+  /**
+   * Successful Response
+   */
+  200: ClusterMap;
+};
+
+export type GetClusterMapResponse = GetClusterMapResponses[keyof GetClusterMapResponses];
 
 export type ClientOptions = {
   baseUrl: 'http://localhost:8000' | (string & {});
