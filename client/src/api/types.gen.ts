@@ -51,6 +51,25 @@ export type ClusterSummary = {
 };
 
 /**
+ * One representative quote from a cluster summary.
+ */
+export type ClusterSummaryQuote = {
+  text: string;
+  feedback_item_id: string;
+};
+
+/**
+ * Claude-generated summary for a cluster with label, summary, and quotes.
+ */
+export type ClusterSummaryResponse = {
+  cluster_id: string;
+  label: string;
+  summary: string;
+  quotes: Array<ClusterSummaryQuote>;
+  cached_at: string;
+};
+
+/**
  * A clustering run — maps feedback items to semantic clusters.
  */
 export type ClusteringRun = {
@@ -445,6 +464,36 @@ export type ListClusterItemsResponses = {
 };
 
 export type ListClusterItemsResponse = ListClusterItemsResponses[keyof ListClusterItemsResponses];
+
+export type GetClusterSummaryData = {
+  body?: never;
+  path: {
+    cluster_id: string;
+  };
+  query?: {
+    force?: boolean;
+  };
+  url: '/clusters/{cluster_id}/summary';
+};
+
+export type GetClusterSummaryErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetClusterSummaryError = GetClusterSummaryErrors[keyof GetClusterSummaryErrors];
+
+export type GetClusterSummaryResponses = {
+  /**
+   * Successful Response
+   */
+  200: ClusterSummaryResponse;
+};
+
+export type GetClusterSummaryResponse =
+  GetClusterSummaryResponses[keyof GetClusterSummaryResponses];
 
 export type GetClusterMapData = {
   body?: never;

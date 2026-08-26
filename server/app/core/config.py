@@ -64,6 +64,11 @@ class Settings(BaseSettings):
     clustering_random_seed: int = 42
     clustering_incremental_threshold: int = 10
 
+    # --- Cluster summarization (Claude-powered, on-demand, cached) ---
+    summary_cache_ttl_hours: int = 24
+    summarization_max_sample_tokens: int = 8000
+    summarization_max_tokens: int = 1024
+
     @field_validator("database_url")
     @classmethod
     def _anchor_relative_sqlite_path(cls, value: str) -> str:

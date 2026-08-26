@@ -36,6 +36,9 @@ import type {
   ListClusterItemsData,
   ListClusterItemsResponse,
   ListClusterItemsError,
+  GetClusterSummaryData,
+  GetClusterSummaryResponse,
+  GetClusterSummaryError,
   GetClusterMapData,
   GetClusterMapResponse,
   GetClusterMapError,
@@ -234,6 +237,36 @@ export const listClusterItems = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: '/clusters/{cluster_id}/items',
+    ...options,
+  });
+};
+
+/**
+ * Get Cluster Summary
+ * Get or generate a Claude summary for a cluster.
+ *
+ * Returns a cached summary if available and not forced; otherwise generates
+ * a new one via Claude (label, summary text, representative quotes) and caches it.
+ *
+ * Args:
+ * cluster_id: Cluster to summarize.
+ * force: If true, bypass cache and regenerate.
+ * db: Database session.
+ *
+ * Returns:
+ * 200 with ClusterSummaryResponse (cluster_id, label, summary, quotes, cached_at).
+ * 404 if cluster not found.
+ * 503 if summarization failed (Claude API error or validation failure).
+ */
+export const getClusterSummary = <ThrowOnError extends boolean = false>(
+  options: Options<GetClusterSummaryData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).get<
+    GetClusterSummaryResponse,
+    GetClusterSummaryError,
+    ThrowOnError
+  >({
+    url: '/clusters/{cluster_id}/summary',
     ...options,
   });
 };

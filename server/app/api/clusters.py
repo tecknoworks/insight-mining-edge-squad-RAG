@@ -7,6 +7,7 @@ Claude summarization in ``app.insights``.
 import uuid
 from typing import Any
 
+from anthropic import Anthropic
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import and_, select
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.clustering.service import run_clustering, should_cluster
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.insights.summarizer import get_or_generate_cluster_summary
 from app.models.db import Cluster, ClusterAssignment, ClusteringRun, Dataset, FeedbackItem
 from app.models.schemas import (
     ClusterAssignmentPoint,
@@ -22,6 +24,7 @@ from app.models.schemas import (
     ClusterItemsPage,
     ClusterMap,
     ClusterSummary,
+    ClusterSummaryResponse,
 )
 from app.models.schemas import (
     ClusteringRun as ClusteringRunSchema,
@@ -153,6 +156,54 @@ def list_cluster_items(
     return ClusterItemsPage(
         items=[ClusterItemPage.model_validate(item) for item in items]
     )
+
+
+@router.get("/{cluster_id}/summary", response_model=ClusterSummaryResponse)
+def get_cluster_summary(
+    cluster_id: uuid.UUID,
+    force: bool = Query(default=False),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Get or generate a Claude summary for a cluster.
+
+    Returns a cached summary if available and not forced; otherwise generates
+    a new one via Claude (label, summary text, representative quotes) and caches it.
+
+    Args:
+        cluster_id: Cluster to summarize.
+        force: If true, bypass cache and regenerate.
+        db: Database session.
+
+    Returns:
+        200 with ClusterSummaryResponse (cluster_id, label, summary, quotes, cached_at).
+        404 if cluster not found.
+        503 if summarization failed (Claude API error or validation failure).
+    """
+    settings = get_settings()
+
+    # Verify cluster exists
+    cluster = db.get(Cluster, cluster_id)
+    if cluster is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="cluster not found")
+
+    # Initialize Anthropic client
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Anthropic API key not configured",
+        )
+    client = Anthropic(api_key=settings.anthropic_api_key)
+
+    # Generate or retrieve cached summary
+    try:
+        result = get_or_generate_cluster_summary(db, cluster_id, settings, client, force=force)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to summarize cluster: {str(exc)}",
+        ) from exc
+
+    return result
 
 
 @router.get("/map", response_model=ClusterMap)
