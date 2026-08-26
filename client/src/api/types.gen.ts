@@ -15,6 +15,24 @@ export type ClusterAssignmentPoint = {
 };
 
 /**
+ * One feedback item as returned by the cluster items endpoint.
+ */
+export type ClusterItemPage = {
+  id: string;
+  feedback_text: string;
+  source: string | null;
+  submitted_at: string | null;
+  customer_id: string | null;
+};
+
+/**
+ * Paginated list of feedback items in a cluster.
+ */
+export type ClusterItemsPage = {
+  items: Array<ClusterItemPage>;
+};
+
+/**
  * Flat payload for cluster visualization — all points + cluster metadata.
  */
 export type ClusterMap = {
@@ -423,9 +441,7 @@ export type ListClusterItemsResponses = {
   /**
    * Successful Response
    */
-  200: {
-    [key: string]: unknown;
-  };
+  200: ClusterItemsPage;
 };
 
 export type ListClusterItemsResponse = ListClusterItemsResponses[keyof ListClusterItemsResponses];
