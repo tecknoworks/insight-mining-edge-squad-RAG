@@ -1,6 +1,6 @@
 # IM-7 — Auth / multi-tenant support
 
-**Type:** Story **Epic:** Platform **Priority:** P1 — do before IM-8 and before data volume grows
+**Type:** Story **Epic:** Platform **Priority:** P1 — before data volume grows
 **Estimate:** 13 points **Depends on:** IM-1 (in practice, retrofits IM-1→IM-6)
 **Branch:** `feat/server/auth-multi-tenant` then `feat/client/auth-ui`
 
@@ -9,7 +9,7 @@
 Everything shipped so far is single-tenant and unauthenticated: any caller can read any dataset.
 Customer feedback contains PII (`customer_id`, free-text complaints), so this is a prerequisite for
 any deployment beyond a developer laptop. Retrofitting tenancy gets more expensive with every table
-added — hence P1 and hence "before IM-8".
+added — hence P1.
 
 ## Design decisions taken in this PRD
 

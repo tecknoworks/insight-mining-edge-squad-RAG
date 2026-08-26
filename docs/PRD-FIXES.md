@@ -54,20 +54,6 @@ This document summarizes the updates made to the Insight Miner PRDs to fix archi
   - Query patterns (correct scoping via ForeignKey chains, anti-patterns to avoid).
 - **Impact:** Engineers building IM-7 won't have to guess where tenancy boundaries go.
 
-### IM-8: Scheduler Constraint Front-and-Center
-
-- **Moved:** Scaling ceiling (in-process ≠ horizontal) now in **Scope/Constraint** section (not buried).
-  - Bold warning: "Before deploying to multiple instances, replace with a real job runner."
-  - Reference to README.md for documentation.
-- **Impact:** Teams won't be surprised when load-balancing fails.
-
-### IM-8: Per-Connection Tuning Added
-
-- **New:** Each connection can override sync interval (`sync_interval_minutes`).
-  - Default falls back to global `CONNECTOR_SYNC_INTERVAL_MINUTES`.
-  - New `PATCH /ingestion/connections/{id}` endpoint to adjust without full reconnect.
-- **Impact:** Operators can tune sync cadence per source without code or env-var changes.
-
 ### IM-1: CSV Column Matching Clarified
 
 - **Clarified:** Column order does not matter; matching is by name.
@@ -102,7 +88,6 @@ This document summarizes the updates made to the Insight Miner PRDs to fix archi
 | IM-5   | IM-3, IM-4 | Visual encoding stable; keyboard model specified.                           |
 | IM-6   | IM-2       | HNSW retrieval path clear; Haiku model confirmed. SSE contract final.       |
 | IM-7   | IM-1→IM-6  | Retrofit checklist unambiguous per stage. Query patterns explicit.          |
-| IM-8   | IM-1, IM-7 | Scheduler constraint acknowledged. Per-connection tuning unblocks ops.      |
 
 ---
 
