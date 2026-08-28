@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render } from '@testing-library/react';
 import { FilterBar } from '../FilterBar';
 import { DatasetProvider } from '../../store/DatasetContext';
-import type { DatasetDetail } from '../../api';
 
 function renderWithProvider(component: React.ReactElement) {
   return render(<DatasetProvider>{component}</DatasetProvider>);

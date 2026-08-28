@@ -14,12 +14,12 @@ const mockCluster: ClusterSummary = {
   label: 'Performance Issues',
 };
 
-const mockNoisCluster: ClusterSummary = {
+const mockNoisCluster = {
   id: null,
   cluster_index: -1,
   item_count: 10,
   label: null,
-};
+} as unknown as ClusterSummary;
 
 function renderWithProvider(component: React.ReactElement) {
   return render(<DatasetProvider>{component}</DatasetProvider>);
@@ -102,7 +102,7 @@ describe('ClusterDetail', () => {
     vi.mocked(api.getClusterSummary).mockRejectedValue(new Error('API error'));
     vi.mocked(api.listClusterItems).mockResolvedValueOnce({
       data: { items: [] },
-    });
+    } as any);
 
     renderWithProvider(<ClusterDetail cluster={mockCluster} />);
 
@@ -125,7 +125,7 @@ describe('ClusterDetail', () => {
           },
         ],
       },
-    });
+    } as any);
 
     renderWithProvider(<ClusterDetail cluster={mockNoisCluster} />);
 

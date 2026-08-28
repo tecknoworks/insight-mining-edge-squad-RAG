@@ -1,15 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { ClusterList } from '../ClusterList';
 import { DatasetProvider } from '../../store/DatasetContext';
 import type { ClusterSummary } from '../../api';
 
-const mockClusters: ClusterSummary[] = [
+const mockClusters = [
   { id: 'cluster-1', cluster_index: 0, item_count: 100, label: 'Performance Issues' },
   { id: 'cluster-2', cluster_index: 1, item_count: 50, label: 'UI/UX Feedback' },
   { id: null, cluster_index: -1, item_count: 10, label: null },
-];
+] as unknown as ClusterSummary[];
 
 function renderWithProvider(component: React.ReactElement) {
   return render(<DatasetProvider>{component}</DatasetProvider>);
@@ -43,8 +42,7 @@ describe('ClusterList', () => {
     expect(noiseItem).toHaveStyle({ opacity: '0.7' });
   });
 
-  it('supports keyboard navigation with arrow keys', async () => {
-    const user = userEvent.setup();
+  it('supports keyboard navigation with arrow keys', () => {
     renderWithProvider(<ClusterList clusters={mockClusters} />);
 
     const listContainer = screen.getByText('Clusters').parentElement;
@@ -62,8 +60,7 @@ describe('ClusterList', () => {
     }
   });
 
-  it('selects cluster with Enter key', async () => {
-    const user = userEvent.setup();
+  it('selects cluster with Enter key', () => {
     renderWithProvider(<ClusterList clusters={mockClusters} />);
 
     const list = screen.getByText('Clusters').parentElement?.querySelector('ul');
