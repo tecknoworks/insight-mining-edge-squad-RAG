@@ -1,5 +1,10 @@
-import { HomePage } from './pages/HomePage';
+import { DashboardPage } from './pages/DashboardPage';
+import { DatasetProvider } from './store/DatasetContext';
 
 export function App() {
-  return <HomePage />;
+  return (
+    <DatasetProvider>
+      <DashboardPage />
+    </DatasetProvider>
+  );
 }
