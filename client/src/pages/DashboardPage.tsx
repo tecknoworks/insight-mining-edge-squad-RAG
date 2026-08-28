@@ -5,6 +5,7 @@ import { ClusterList } from '../components/ClusterList';
 import { ClusterMap } from '../components/ClusterMap';
 import { ClusterDetail } from '../components/ClusterDetail';
 import { FilterBar } from '../components/FilterBar';
+import { LlmHealthStatus } from '../components/LlmHealthStatus';
 import { MapLoadingSkeleton } from '../components/LoadingStates';
 import { NoDatasets, NotClustered, NoClusters } from '../components/EmptyStates';
 import { MapError } from '../components/ErrorStates';
@@ -118,7 +119,17 @@ export function DashboardPage() {
   return (
     <main style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <div style={{ padding: '1rem', borderBottom: '1px solid #e0e0e0' }}>
-        <h1 style={{ margin: '0 0 1rem 0' }}>Insight Miner</h1>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1rem',
+          }}
+        >
+          <h1 style={{ margin: 0 }}>Insight Miner</h1>
+          <LlmHealthStatus />
+        </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <label htmlFor="dataset-select" style={{ fontWeight: 500 }}>
             Dataset:
