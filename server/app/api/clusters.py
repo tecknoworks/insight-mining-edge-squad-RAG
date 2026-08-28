@@ -198,9 +198,16 @@ def get_cluster_summary(
     try:
         result = get_or_generate_cluster_summary(db, cluster_id, settings, client, force=force)
     except ValueError as exc:
+        error_detail = str(exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Failed to summarize cluster: {str(exc)}",
+            detail=error_detail,
+        ) from exc
+    except Exception as exc:
+        error_detail = f"{type(exc).__name__}: {str(exc)}"
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=error_detail,
         ) from exc
 
     return result

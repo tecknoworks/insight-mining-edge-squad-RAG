@@ -247,20 +247,26 @@ Feedback in this cluster:
 Respond with only a JSON object matching the schema provided."""
 
     # Call Claude with structured output
-    response = client.messages.create(
-        model=settings.anthropic_summarization_model,
-        max_tokens=settings.summarization_max_tokens,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=1,  # Required for structured output
-        output_config={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "ClusterSummary",
-                "schema": SUMMARIZATION_RESPONSE_SCHEMA,
-                "strict": True,
+    try:
+        response = client.messages.create(
+            model=settings.anthropic_summarization_model,
+            max_tokens=settings.summarization_max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=1,  # Required for structured output
+            output_config={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "ClusterSummary",
+                    "schema": SUMMARIZATION_RESPONSE_SCHEMA,
+                    "strict": True,
+                },
             },
-        },
-    )
+        )
+    except Exception as exc:
+        logger.error(
+            f"Claude API call failed for cluster {cluster_id}: {type(exc).__name__}: {exc}"
+        )
+        raise ValueError(f"Claude API error: {str(exc)}") from exc
 
     # Log token usage
     logger.info(

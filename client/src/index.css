@@ -1,7 +1,51 @@
 :root {
   color-scheme: light dark;
+  --color-cluster-0: #1f77b4;
+  --color-cluster-1: #ff7f0e;
+  --color-cluster-2: #2ca02c;
+  --color-cluster-3: #d62728;
+  --color-cluster-4: #9467bd;
+  --color-cluster-5: #8c564b;
+  --color-cluster-6: #e377c2;
+  --color-cluster-7: #7f7f7f;
+  --color-cluster-8: #bcbd22;
+  --color-cluster-9: #17becf;
+  --color-cluster-10: #aec7e8;
+  --color-cluster-11: #ffbb78;
+  --color-noise: #cccccc;
+  --focus-color: #1976d2;
+  --focus-width: 2px;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+select {
+  font-family: inherit;
+}
+
+/* Focus indicators for keyboard navigation */
+*:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: 2px;
+}
+
+/* Specific focus styles for list items */
+li:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: -2px;
 }
