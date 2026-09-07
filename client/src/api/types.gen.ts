@@ -5,6 +5,62 @@ export type BodyUploadCsv = {
 };
 
 /**
+ * One feedback item the answer actually referenced.
+ *
+ * ``excerpt`` is truncated server-side; ``feedback_item_id`` always belongs
+ * to the requested dataset because retrieval was dataset-scoped in SQL.
+ */
+export type ChatCitation = {
+  feedback_item_id: string;
+  excerpt: string;
+  source?: string | null;
+  date?: string | null;
+};
+
+/**
+ * Optional scope narrowing for retrieval, applied as SQL predicates.
+ *
+ * ``date_to`` is *inclusive* of the whole day — the retrieval layer converts
+ * it to ``submitted_at < date_to + 1 day`` because ``submitted_at`` is a
+ * timestamp, not a date.
+ */
+export type ChatFilters = {
+  source?: Array<string> | null;
+  date_from?: string | null;
+  date_to?: string | null;
+};
+
+/**
+ * One persisted turn, as replayed by ``GET /chat/conversations/{id}``.
+ */
+export type ChatMessageOut = {
+  id: string;
+  role: ChatRole;
+  content: string;
+  citations?: Array<ChatCitation> | null;
+  sequence: number;
+  created_at: string;
+};
+
+/**
+ * Request body for ``POST /chat/messages``.
+ *
+ * ``conversation_id`` is ``None`` to start a new conversation; the assigned
+ * id comes back on the terminal ``done`` event.
+ */
+export type ChatMessageRequest = {
+  dataset_id: string;
+  message: string;
+  conversation_id?: string | null;
+  filters?: ChatFilters | null;
+};
+
+/**
+ * Author of a chat message. Mirrors the Anthropic Messages API's roles.
+ */
+export type ChatRole = 'user' | 'assistant';
+
+/**
  * One point in the cluster visualization map.
  */
 export type ClusterAssignmentPoint = {
@@ -95,6 +151,17 @@ export type ClusteringRunRequest = {
   params?: {
     [key: string]: unknown;
   } | null;
+};
+
+/**
+ * A conversation and its messages, ordered by ``sequence``.
+ */
+export type ConversationDetail = {
+  id: string;
+  dataset_id: string;
+  title: string | null;
+  created_at: string;
+  messages?: Array<ChatMessageOut>;
 };
 
 /**
@@ -219,6 +286,24 @@ export type HealthResponses = {
 };
 
 export type HealthResponse = HealthResponses[keyof HealthResponses];
+
+export type LlmHealthData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/health/llm';
+};
+
+export type LlmHealthResponses = {
+  /**
+   * Successful Response
+   */
+  200: {
+    [key: string]: string;
+  };
+};
+
+export type LlmHealthResponse = LlmHealthResponses[keyof LlmHealthResponses];
 
 export type UploadCsvData = {
   body: BodyUploadCsv;
@@ -521,6 +606,56 @@ export type GetClusterMapResponses = {
 };
 
 export type GetClusterMapResponse = GetClusterMapResponses[keyof GetClusterMapResponses];
+
+export type PostChatMessageData = {
+  body: ChatMessageRequest;
+  path?: never;
+  query?: never;
+  url: '/chat/messages';
+};
+
+export type PostChatMessageErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type PostChatMessageError = PostChatMessageErrors[keyof PostChatMessageErrors];
+
+export type PostChatMessageResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
+export type GetConversationData = {
+  body?: never;
+  path: {
+    conversation_id: string;
+  };
+  query?: never;
+  url: '/chat/conversations/{conversation_id}';
+};
+
+export type GetConversationErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetConversationError = GetConversationErrors[keyof GetConversationErrors];
+
+export type GetConversationResponses = {
+  /**
+   * Successful Response
+   */
+  200: ConversationDetail;
+};
+
+export type GetConversationResponse = GetConversationResponses[keyof GetConversationResponses];
 
 export type ClientOptions = {
   baseUrl: 'http://localhost:8000' | (string & {});

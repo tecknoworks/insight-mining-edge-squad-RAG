@@ -9,6 +9,8 @@ import {
 import type {
   HealthData,
   HealthResponse,
+  LlmHealthData,
+  LlmHealthResponse,
   UploadCsvData,
   UploadCsvResponse,
   UploadCsvError,
@@ -42,6 +44,11 @@ import type {
   GetClusterMapData,
   GetClusterMapResponse,
   GetClusterMapError,
+  PostChatMessageData,
+  PostChatMessageError,
+  GetConversationData,
+  GetConversationResponse,
+  GetConversationError,
 } from './types.gen';
 import { client as _heyApiClient } from './client.gen';
 
@@ -71,6 +78,26 @@ export const health = <ThrowOnError extends boolean = false>(
 ) => {
   return (options?.client ?? _heyApiClient).get<HealthResponse, unknown, ThrowOnError>({
     url: '/health',
+    ...options,
+  });
+};
+
+/**
+ * Llm Health
+ * Check Anthropic API connectivity and configuration.
+ *
+ * Makes a real API call to verify the key works and Claude responds.
+ * This is not a real summarization — just a test message.
+ *
+ * Returns:
+ * 200 with {"status": "ok"} if the API key is set and Claude responds.
+ * 503 if API key is missing or Claude is unreachable.
+ */
+export const llmHealth = <ThrowOnError extends boolean = false>(
+  options?: Options<LlmHealthData, ThrowOnError>,
+) => {
+  return (options?.client ?? _heyApiClient).get<LlmHealthResponse, unknown, ThrowOnError>({
+    url: '/health/llm',
     ...options,
   });
 };
@@ -252,6 +279,8 @@ export const listClusterItems = <ThrowOnError extends boolean = false>(
  * cluster_id: Cluster to summarize.
  * force: If true, bypass cache and regenerate.
  * db: Database session.
+ * settings: Application settings. Injected rather than fetched in-body so
+ * `dependency_overrides[get_settings]` actually takes effect in tests.
  *
  * Returns:
  * 200 with ClusterSummaryResponse (cluster_id, label, summary, quotes, cached_at).
@@ -284,6 +313,57 @@ export const getClusterMap = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: '/clusters/map',
+    ...options,
+  });
+};
+
+/**
+ * Post Chat Message
+ * Answer a question over the feedback corpus, streaming the answer as SSE.
+ *
+ * Emits ``token*`` → ``citations`` → ``done``; on failure a single ``error``
+ * frame and nothing after it. Note the stream also carries periodic ``:``
+ * keepalive comments, which clients must skip.
+ *
+ * A sync generator on purpose: the body blocks on the Anthropic HTTP stream
+ * and on SQLAlchemy, so FastAPI runs it in a threadpool rather than on the
+ * event loop.
+ *
+ * Returns:
+ * 200 with an SSE stream.
+ * 404 if the dataset or conversation does not exist.
+ * 503 if a Claude call is required but no API key is configured.
+ */
+export const postChatMessage = <ThrowOnError extends boolean = false>(
+  options: Options<PostChatMessageData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).post<unknown, PostChatMessageError, ThrowOnError>({
+    url: '/chat/messages',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
+};
+
+/**
+ * Get Conversation
+ * Replay a conversation and its messages, ordered by ``sequence``.
+ *
+ * Returns:
+ * 200 with the conversation and its messages.
+ * 404 if the conversation does not exist.
+ */
+export const getConversation = <ThrowOnError extends boolean = false>(
+  options: Options<GetConversationData, ThrowOnError>,
+) => {
+  return (options.client ?? _heyApiClient).get<
+    GetConversationResponse,
+    GetConversationError,
+    ThrowOnError
+  >({
+    url: '/chat/conversations/{conversation_id}',
     ...options,
   });
 };
