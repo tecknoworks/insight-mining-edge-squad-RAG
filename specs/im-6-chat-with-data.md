@@ -73,13 +73,22 @@ does not have to improvise:
 Also drop the PRD's `Transfer-Encoding: chunked` — the ASGI server owns hop-by-hop framing and setting
 it by hand risks invalid framing.
 
-### Prerequisite fix
+### Prerequisite fix — retracted, no fix needed
 
-`app/embeddings/client.py:85` calls `self._model.get_embedding_dimension()`. The real
-sentence-transformers method is `get_sentence_embedding_dimension()`. Every existing test stubs the
-embedding client, so this line has never executed — it raises `AttributeError` on the first real model
-load, which is exactly when chat embeds a live question. Fix it and add a test that constructs the real
-client, since nothing covers that path today.
+An earlier draft of this spec claimed `app/embeddings/client.py:85` called a nonexistent
+sentence-transformers method and would raise `AttributeError` on first real model load. **That was
+wrong.** Verified against the installed sentence-transformers 6.0.0:
+
+- `get_embedding_dimension()` — what the code already calls — is the current, canonical method
+- `get_sentence_embedding_dimension()` is **deprecated** (`FutureWarning`: "has been renamed to
+  `get_embedding_dimension`")
+
+So the existing line is correct and must be left alone. Note `specs/im-2-embedding-pipeline.md:93`
+still references the deprecated name — that spec is stale, the code is right.
+
+The one real gap stands: no test ever constructs the real `SentenceTransformerEmbeddingClient` (every
+test stubs it), so the constructor's dimension check is uncovered. Worth a test, but it is not a
+blocker and not a prerequisite.
 
 ### Retrieval (`app/insights/retrieval.py`)
 
@@ -137,20 +146,22 @@ Error handling uses a most-specific-first chain (`NotFoundError` → `RateLimitE
 
 ### Transport — SSE
 
-**Verify this first, before writing the handler:**
+**Verified** (this was an open question while drafting; the probe has since been run):
 
 ```bash
 cd server && uv run python -c "from fastapi.sse import EventSourceResponse; print('native SSE ok')"
 ```
 
-FastAPI is pinned at 0.139.2 (Starlette 1.3.1), which reportedly ships native SSE with a first-class
-sync-generator code path. This was not verifiable while writing the spec — no venv is installed on the
-authoring machine. Both outcomes are supported and produce identical bytes on the wire:
+FastAPI 0.139.2 / Starlette 1.3.1 **does** ship native SSE — `fastapi.sse.EventSourceResponse` and
+`ServerSentEvent` both import cleanly. So take the native path: `response_class=EventSourceResponse`,
+yielding `ServerSentEvent(event=..., data=...)`. Do **not** hand-format `event:`/`data:` frames, and do
+**not** add `sse-starlette`.
 
-- **Present:** `response_class=EventSourceResponse`, yield `ServerSentEvent(event=..., data=...)`
-- **Absent:** `StreamingResponse(gen, media_type="text/event-stream")`, format frames by hand
+`app/insights/chat.py` still yields a transport-neutral `ChatEvent(event, data)` rather than
+`ServerSentEvent`, so the module layer carries no FastAPI dependency and the ordering tests need no
+HTTP; `app/api/chat.py` does the one-line adaptation.
 
-Either way the handler is a **sync `def` generator**. `async def` is wrong: the body blocks on
+The handler is a **sync `def` generator**. `async def` is wrong: the body blocks on
 `anthropic`'s sync HTTP stream and on SQLAlchemy, which would stall the event loop. Sync generators are
 run in a threadpool, match the repo's all-sync handler convention, and need no new dependency — do
 **not** add `sse-starlette`. Set `Cache-Control: no-cache` and `X-Accel-Buffering: no` (the usual cause
@@ -309,7 +320,6 @@ Render tokens as plain text — **no markdown dependency** and no `dangerouslySe
 - `server/.env.example` — the same new vars and changed default
 - `server/app/models/db.py` — `Conversation`, `ChatMessage` ORM models
 - `server/app/models/schemas.py` — request/response DTOs and SSE payload models
-- `server/app/embeddings/client.py` — prerequisite `get_sentence_embedding_dimension` fix
 - `server/app/api/clusters.py` — 2-line `Depends(get_settings)` fix
 - `server/app/insights/summarizer.py` — extract the shared excerpt-truncation helper only
 
@@ -320,6 +330,8 @@ Render tokens as plain text — **no markdown dependency** and no `dangerouslySe
 - `client/src/store/ChatContext.tsx` (create)
 - `client/src/components/__tests__/ChatPanel.test.tsx` (create)
 - `client/src/pages/DashboardPage.tsx` — mount the panel in the existing flex row
+- `client/src/App.tsx` — wrap the page in `ChatProvider`, following the existing convention that
+  feature-scoped providers are mounted here (this file was missing from the original list)
 - `client/src/api/` — regenerate via `pnpm generate:api` after the routes land
 
 ## Test Plan
@@ -337,8 +349,8 @@ Render tokens as plain text — **no markdown dependency** and no `dangerouslySe
 - Citation mapping: valid indices map correctly; out-of-range indices are dropped; no citations → `[]`
 - Excerpt truncation at 200 chars on a word boundary
 - Stale-dimension blob is skipped rather than decoded
-- The real `SentenceTransformerEmbeddingClient` constructs without raising (covers the prerequisite
-  fix — nothing tests this today)
+- The real `SentenceTransformerEmbeddingClient` constructs without raising — nothing covers this path
+  today. Not a prerequisite (see the retraction above), but it closes a genuine coverage gap
 
 **Integration (`TestClient`, hand-written fake Anthropic client):**
 
@@ -378,7 +390,8 @@ do cleanly. Inject it via `app.dependency_overrides[get_anthropic_client]`.
 ## Definition of Done
 
 - All acceptance criteria met; `uv run pytest` and `pnpm --filter client build` pass
-- The `fastapi.sse` availability probe run and the chosen transport path recorded in the PR
+- Transport confirmed: FastAPI 0.139.2 native SSE (`fastapi.sse.EventSourceResponse`), no
+  `sse-starlette` dependency added
 - `ANTHROPIC_CHAT_MODEL` default is `claude-haiku-4-5`; model-literal grep clean over `app/api/`,
   `app/insights/`, `app/clustering/`, `app/embeddings/`
 - `client/src/api/` regenerated and committed after the backend routes land
