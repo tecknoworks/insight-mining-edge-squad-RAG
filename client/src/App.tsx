@@ -1,10 +1,13 @@
 import { DashboardPage } from './pages/DashboardPage';
 import { DatasetProvider } from './store/DatasetContext';
+import { ChatProvider } from './store/ChatContext';
 
 export function App() {
   return (
     <DatasetProvider>
-      <DashboardPage />
+      <ChatProvider>
+        <DashboardPage />
+      </ChatProvider>
     </DatasetProvider>
   );
 }
