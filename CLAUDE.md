@@ -77,12 +77,14 @@ Run both apps concurrently from the repo root (no `cd`-ing into `server/`/`clien
 pnpm dev                          # backend on :8000 (uvicorn --reload) + frontend on :5173 (vite)
 ```
 
-Backend only (`cd server`) — SQLite database is created automatically on startup:
+Backend only (`cd server`) — **run the migrations before the first `uvicorn`**. The SQLite _file_ is
+created on first connect, but its schema is not: starting the server against an un-migrated database
+logs a warning and skips vector-index warmup, and every request then fails.
 
 ```bash
 uv sync                           # installs deps from pyproject.toml / uv.lock, creates .venv automatically
-uv run alembic upgrade head       # apply DB migrations (no migrations authored yet — chain is a no-op)
-uv run uvicorn app.main:app --reload    # runs on :8000, creates insight_miner.db if not present
+uv run alembic upgrade head       # apply DB migrations — required before the first run
+uv run uvicorn app.main:app --reload    # runs on :8000
 uv run pytest                     # runs the backend test suite
 ```
 
