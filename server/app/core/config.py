@@ -39,8 +39,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     # Batch cluster summarization — cheapest tier is sufficient (high volume).
     anthropic_summarization_model: str = "claude-haiku-4-5"
-    # Chat-with-data (RAG) — interactive, needs stronger reasoning.
-    anthropic_chat_model: str = "claude-sonnet-5"
+    # Chat-with-data (RAG). Haiku by default per the cost-optimized strategy in
+    # CLAUDE.md — the answer is grounded in retrieved context, so the model does
+    # far less unaided reasoning than the tier would suggest. Upgrade by editing
+    # the env var, not the code.
+    anthropic_chat_model: str = "claude-haiku-4-5"
 
     # --- Embeddings (open-source sentence-transformers, runs locally) ---
     embedding_model: str = "all-MiniLM-L6-v2"
@@ -68,6 +71,15 @@ class Settings(BaseSettings):
     summary_cache_ttl_hours: int = 24
     summarization_max_sample_tokens: int = 8000
     summarization_max_tokens: int = 1024
+
+    # --- Chat-with-data (RAG over the feedback corpus) ---
+    chat_top_k: int = 20
+    # Cosine *distance* ceiling (not similarity): retrieved items further than
+    # this are discarded, and a turn with nothing under it is answered without
+    # calling Claude at all. Same metric as the clustering stage.
+    chat_max_distance: float = 0.6
+    chat_max_history_tokens: int = 20000
+    chat_max_tokens: int = 8000
 
     @field_validator("database_url")
     @classmethod
