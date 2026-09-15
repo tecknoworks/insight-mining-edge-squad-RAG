@@ -16,6 +16,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.insights.citations import truncate_text
 from app.models.db import Cluster, ClusterAssignment, ClusterSummary, FeedbackItem
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,9 @@ def _sample_cluster_items(
 def _truncate_quote(quote: str, max_len: int = 500) -> tuple[str, bool]:
     """Truncate a quote to max length, appending … if truncated.
 
+    Delegates to the shared helper in ``app.insights.citations``, which the
+    chat path also uses (at a shorter limit, and cutting on word boundaries).
+
     Args:
         quote: Quote text.
         max_len: Maximum length (default 500).
@@ -138,9 +142,7 @@ def _truncate_quote(quote: str, max_len: int = 500) -> tuple[str, bool]:
     Returns:
         Tuple of (truncated_quote, was_truncated).
     """
-    if len(quote) <= max_len:
-        return quote, False
-    return quote[:max_len] + "…", True
+    return truncate_text(quote, max_len)
 
 
 def _validate_quotes(

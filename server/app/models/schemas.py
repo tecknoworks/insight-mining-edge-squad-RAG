@@ -6,10 +6,10 @@ frontend client (``client/src/api/``).
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DatasetStatus(StrEnum):
@@ -28,6 +28,13 @@ class EmbeddingJobState(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class ChatRole(StrEnum):
+    """Author of a chat message. Mirrors the Anthropic Messages API's roles."""
+
+    USER = "user"
+    ASSISTANT = "assistant"
 
 
 class IngestionError(BaseModel):
@@ -197,3 +204,100 @@ class ClusterSummaryResponse(BaseModel):
     summary: str
     quotes: list[ClusterSummaryQuote]
     cached_at: datetime
+
+
+# --- Chat-with-data (RAG) ---------------------------------------------------
+#
+# The SSE frame payloads below are declared as models so the shapes reach
+# ``client/src/api/`` through the OpenAPI schema even though the response body
+# itself is a stream the generated client cannot consume (the reader lives in
+# ``client/src/lib/chatStream.ts``).
+
+
+class ChatFilters(BaseModel):
+    """Optional scope narrowing for retrieval, applied as SQL predicates.
+
+    ``date_to`` is *inclusive* of the whole day — the retrieval layer converts
+    it to ``submitted_at < date_to + 1 day`` because ``submitted_at`` is a
+    timestamp, not a date.
+    """
+
+    source: list[str] | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+
+
+class ChatMessageRequest(BaseModel):
+    """Request body for ``POST /chat/messages``.
+
+    ``conversation_id`` is ``None`` to start a new conversation; the assigned
+    id comes back on the terminal ``done`` event.
+    """
+
+    dataset_id: uuid.UUID
+    message: str = Field(min_length=1)
+    conversation_id: uuid.UUID | None = None
+    filters: ChatFilters | None = None
+
+
+class ChatCitation(BaseModel):
+    """One feedback item the answer actually referenced.
+
+    ``excerpt`` is truncated server-side; ``feedback_item_id`` always belongs
+    to the requested dataset because retrieval was dataset-scoped in SQL.
+    """
+
+    feedback_item_id: uuid.UUID
+    excerpt: str
+    source: str | None = None
+    date: datetime | None = None
+
+
+class ChatTokenEvent(BaseModel):
+    """``event: token`` — one incremental chunk of the answer."""
+
+    text: str
+
+
+class ChatCitationsEvent(BaseModel):
+    """``event: citations`` — emitted once, after the last token."""
+
+    items: list[ChatCitation]
+
+
+class ChatDoneEvent(BaseModel):
+    """``event: done`` — terminal success frame."""
+
+    conversation_id: uuid.UUID
+    message_id: uuid.UUID
+
+
+class ChatErrorEvent(BaseModel):
+    """``event: error`` — terminal failure frame; no ``done`` follows it."""
+
+    message: str
+
+
+class ChatMessageOut(BaseModel):
+    """One persisted turn, as replayed by ``GET /chat/conversations/{id}``."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    role: ChatRole
+    content: str
+    citations: list[ChatCitation] | None = None
+    sequence: int
+    created_at: datetime
+
+
+class ConversationDetail(BaseModel):
+    """A conversation and its messages, ordered by ``sequence``."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    dataset_id: uuid.UUID
+    title: str | None
+    created_at: datetime
+    messages: list[ChatMessageOut] = []

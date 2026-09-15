@@ -4,6 +4,7 @@ import { useDataset } from '../store/DatasetContext';
 import { ClusterList } from '../components/ClusterList';
 import { ClusterMap } from '../components/ClusterMap';
 import { ClusterDetail } from '../components/ClusterDetail';
+import { ChatPanel } from '../components/ChatPanel';
 import { FilterBar } from '../components/FilterBar';
 import { LlmHealthStatus } from '../components/LlmHealthStatus';
 import { MapLoadingSkeleton } from '../components/LoadingStates';
@@ -195,6 +196,10 @@ export function DashboardPage() {
               />
             </>
           )}
+
+        {/* Chat only needs embeddings, not clusters, so it sits outside the
+            clustered-map branch above and stays available either way. */}
+        <ChatPanel />
       </div>
     </main>
   );
