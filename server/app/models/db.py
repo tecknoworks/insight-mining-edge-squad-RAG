@@ -24,7 +24,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
-from app.models.schemas import DatasetStatus, EmbeddingJobState
+from app.models.schemas import ChatRole, DatasetStatus, EmbeddingJobState
 
 
 def _utcnow() -> datetime:
@@ -193,3 +193,64 @@ class ClusterSummary(Base):
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     quotes: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+
+class Conversation(Base):
+    """One chat-with-data thread, scoped to a single dataset.
+
+    ``dataset_id`` is where IM-7 hangs its ``organization_id`` scoping — a
+    conversation never spans datasets, so retrieval can never leak across them.
+    """
+
+    __tablename__ = "conversations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    dataset_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+    messages: Mapped[list["ChatMessage"]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="ChatMessage.sequence",
+    )
+
+
+class ChatMessage(Base):
+    """One turn in a conversation — a user question or a grounded assistant answer.
+
+    ``sequence`` is load-bearing, not decorative: the two messages of a single
+    turn are written milliseconds apart and ``created_at`` ties, which would
+    replay them out of order. Ordering is by ``sequence`` everywhere.
+
+    ``citations`` holds the ``ChatCitation`` list for assistant turns and is
+    NULL for user turns.
+    """
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role: Mapped[ChatRole] = mapped_column(
+        Enum(
+            ChatRole,
+            native_enum=False,
+            validate_strings=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    citations: Mapped[list[dict[str, object]] | None] = mapped_column(JSON, nullable=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "sequence", name="uq_chat_messages_conversation_seq"),
+    )
+
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages")

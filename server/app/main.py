@@ -5,17 +5,22 @@ Wires CORS and the API routers. The OpenAPI schema this app serves at
 (``pnpm --filter client generate:api``).
 """
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
+from sqlalchemy import inspect as sa_inspect
 
 from app.api import chat, clusters, health, ingestion
 from app.core.config import get_settings
-from app.core.db import SessionLocal
+from app.core.db import SessionLocal, engine
 from app.embeddings.index import build_index
+from app.models.db import FeedbackItem
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -31,7 +36,21 @@ def _unique_id(route: APIRoute) -> str:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Warm the in-memory HNSW index from already-embedded rows before serving."""
+    """Warm the in-memory HNSW index from already-embedded rows before serving.
+
+    Skipped when the schema has not been created yet. Warming used to run
+    unconditionally, so starting the server against an un-migrated database
+    aborted startup with a bare "no such table" traceback — which is exactly
+    what a first-time setup hits, and it says nothing about what to do.
+    """
+    if not sa_inspect(engine).has_table(FeedbackItem.__tablename__):
+        logger.warning(
+            "Database schema not found — skipping vector-index warmup. "
+            "Run `uv run alembic upgrade head` in server/ to create it."
+        )
+        yield
+        return
+
     db = SessionLocal()
     try:
         build_index(db)

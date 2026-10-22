@@ -14,7 +14,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.clustering.service import run_clustering, should_cluster
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.insights.summarizer import get_or_generate_cluster_summary
 from app.models.db import Cluster, ClusterAssignment, ClusteringRun, Dataset, FeedbackItem
@@ -163,6 +163,7 @@ def get_cluster_summary(
     cluster_id: uuid.UUID,
     force: bool = Query(default=False),
     db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     """Get or generate a Claude summary for a cluster.
 
@@ -173,14 +174,14 @@ def get_cluster_summary(
         cluster_id: Cluster to summarize.
         force: If true, bypass cache and regenerate.
         db: Database session.
+        settings: Application settings. Injected rather than fetched in-body so
+            `dependency_overrides[get_settings]` actually takes effect in tests.
 
     Returns:
         200 with ClusterSummaryResponse (cluster_id, label, summary, quotes, cached_at).
         404 if cluster not found.
         503 if summarization failed (Claude API error or validation failure).
     """
-    settings = get_settings()
-
     # Verify cluster exists
     cluster = db.get(Cluster, cluster_id)
     if cluster is None:
