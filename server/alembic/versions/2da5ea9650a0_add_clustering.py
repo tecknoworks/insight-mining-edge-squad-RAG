@@ -57,7 +57,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['cluster_id'], ['clusters.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['feedback_item_id'], ['feedback_items.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['run_id'], ['clustering_runs.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('run_id', 'feedback_item_id', name='uq_cluster_assignments_run_item')
     )
     op.create_index(op.f('ix_cluster_assignments_cluster_id'), 'cluster_assignments', ['cluster_id'], unique=False)  # noqa: E501
     op.create_index(op.f('ix_cluster_assignments_feedback_item_id'), 'cluster_assignments', ['feedback_item_id'], unique=False)  # noqa: E501
