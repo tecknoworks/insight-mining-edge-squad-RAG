@@ -64,12 +64,8 @@ def test_migrated_schema_matches_the_orm_models(alembic_config: Config):
         }, f"column drift in {table}"
 
 
-def test_batch_mode_rebuild_preserves_cluster_assignment_constraints(alembic_config: Config):
-    """SQLite batch mode recreates the table; the FKs must survive that.
-
-    Adding the unique constraint copies cluster_assignments to a new table, so
-    a reflection gap there would silently drop ON DELETE CASCADE.
-    """
+def test_cluster_assignment_constraints_survive_the_migration_chain(alembic_config: Config):
+    """The unique constraint and all ON DELETE CASCADE FKs must reach head."""
     command.upgrade(alembic_config, "head")
 
     migrated = inspect(create_engine(_url(alembic_config)))

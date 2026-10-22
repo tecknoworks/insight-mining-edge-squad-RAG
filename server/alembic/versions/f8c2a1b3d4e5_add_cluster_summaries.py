@@ -1,7 +1,7 @@
 """add cluster_summaries table
 
 Revision ID: f8c2a1b3d4e5
-Revises: 57b7a3936ceb
+Revises: 2da5ea9650a0
 Create Date: 2026-08-26 18:40:00.000000
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'f8c2a1b3d4e5'
-down_revision: str | None = '57b7a3936ceb'
+down_revision: str | None = '2da5ea9650a0'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
